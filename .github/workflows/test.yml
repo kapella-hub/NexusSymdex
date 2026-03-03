@@ -29,3 +29,17 @@ jobs:
 
       - name: Run tests
         run: pytest tests/ -v --tb=short
+
+      - name: Verify sdist contains no sensitive paths
+        run: |
+          pip install build
+          python -m build --sdist
+          SDIST=$(ls dist/*.tar.gz | head -1)
+          echo "Checking $SDIST for sensitive paths..."
+          FOUND=$(tar -tzf "$SDIST" | grep -E '(\.claude|\.env|\.pypirc|\.aws|\.ssh|id_rsa|id_ed25519|\.pem|\.key|credentials)' || true)
+          if [ -n "$FOUND" ]; then
+            echo "ERROR: Sensitive paths found in sdist:"
+            echo "$FOUND"
+            exit 1
+          fi
+          echo "OK: No sensitive paths found in sdist."
