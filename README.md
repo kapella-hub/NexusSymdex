@@ -218,8 +218,8 @@ Every tool response includes a `_meta` envelope with timing, token savings, and 
   "timing_ms": 4.3,
   "tokens_saved": 48153,
   "total_tokens_saved": 1280837,
-  "cost_avoided": { "claude_opus": 0.24, "gpt5_latest": 0.08 },
-  "total_cost_avoided": { "claude_opus": 6.40, "gpt5_latest": 2.24 }
+  "cost_avoided": { "claude_opus": 1.2038, "gpt5_latest": 0.4815 },
+  "total_cost_avoided": { "claude_opus": 32.02, "gpt5_latest": 12.81 }
 }
 ```
 
@@ -229,6 +229,7 @@ Every tool response includes a `_meta` envelope with timing, token savings, and 
 
 ## Recent Updates
 
+**v0.2.9** — Community savings meter: anonymous token savings shared to a live global counter at j.gravelle.us (opt-out via `JCODEMUNCH_SHARE_SAVINGS=0`); updated model pricing (Opus $25/1M, GPT-5 $10/1M)
 **v0.2.8** — Estimated cost avoided added to every `_meta` response (`cost_avoided`, `total_cost_avoided`)
 **v0.2.7** — Security fix: `.claude/` excluded from sdist; structural CI guardrails prevent credential bundling
 **v0.2.5** — Path traversal hardening in `IndexStore`; `jcodemunch-mcp --help` now works
