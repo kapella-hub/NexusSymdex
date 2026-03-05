@@ -54,6 +54,13 @@ LANGUAGE_EXTENSIONS = {
     ".rs": "rust",
     ".java": "java",
     ".php": "php",
+    ".c": "c",
+    ".h": "c",
+    ".cs": "csharp",
+    ".rb": "ruby",
+    ".kt": "kotlin",
+    ".kts": "kotlin",
+    ".swift": "swift",
 }
 
 
@@ -106,7 +113,7 @@ JAVASCRIPT_SPEC = LanguageSpec(
     docstring_strategy="preceding_comment",
     decorator_node_type=None,
     container_node_types=["class_declaration", "class"],
-    constant_patterns=["lexical_declaration"],
+    constant_patterns=["lexical_declaration", "variable_declaration"],
     type_patterns=[],
 )
 
@@ -144,7 +151,7 @@ TYPESCRIPT_SPEC = LanguageSpec(
     docstring_strategy="preceding_comment",
     decorator_node_type="decorator",
     container_node_types=["class_declaration", "class"],
-    constant_patterns=["lexical_declaration"],
+    constant_patterns=["lexical_declaration", "variable_declaration"],
     type_patterns=["interface_declaration", "type_alias_declaration", "enum_declaration"],
 )
 
@@ -277,6 +284,142 @@ PHP_SPEC = LanguageSpec(
 )
 
 
+# C specification
+C_SPEC = LanguageSpec(
+    ts_language="c",
+    symbol_node_types={
+        "function_definition": "function",
+        "struct_specifier": "type",
+        "enum_specifier": "type",
+        "type_definition": "type",
+    },
+    name_fields={
+        # function_definition uses nested declarator; handled in _extract_name
+        "struct_specifier": "name",
+        "enum_specifier": "name",
+    },
+    param_fields={
+        # Parameters are inside the nested function_declarator
+    },
+    return_type_fields={
+        "function_definition": "type",
+    },
+    docstring_strategy="preceding_comment",
+    decorator_node_type=None,
+    container_node_types=[],
+    constant_patterns=[],
+    type_patterns=["struct_specifier", "enum_specifier", "type_definition"],
+)
+
+
+# C# specification
+CSHARP_SPEC = LanguageSpec(
+    ts_language="csharp",
+    symbol_node_types={
+        "method_declaration": "method",
+        "constructor_declaration": "method",
+        "class_declaration": "class",
+        "struct_declaration": "type",
+        "interface_declaration": "type",
+        "enum_declaration": "type",
+    },
+    name_fields={
+        "method_declaration": "name",
+        "constructor_declaration": "name",
+        "class_declaration": "name",
+        "struct_declaration": "name",
+        "interface_declaration": "name",
+        "enum_declaration": "name",
+    },
+    param_fields={
+        "method_declaration": "parameters",
+        "constructor_declaration": "parameters",
+    },
+    return_type_fields={
+        "method_declaration": "returns",
+    },
+    docstring_strategy="preceding_comment",
+    decorator_node_type=None,
+    container_node_types=["class_declaration", "struct_declaration", "interface_declaration"],
+    constant_patterns=["field_declaration"],
+    type_patterns=["interface_declaration", "enum_declaration", "struct_declaration"],
+)
+
+
+# Ruby specification
+RUBY_SPEC = LanguageSpec(
+    ts_language="ruby",
+    symbol_node_types={
+        "method": "function",
+        "singleton_method": "function",
+        "class": "class",
+        "module": "class",
+    },
+    name_fields={
+        "method": "name",
+        "singleton_method": "name",
+        "class": "name",
+        "module": "name",
+    },
+    param_fields={
+        "method": "parameters",
+        "singleton_method": "parameters",
+    },
+    return_type_fields={},
+    docstring_strategy="preceding_comment",
+    decorator_node_type=None,
+    container_node_types=["class", "module"],
+    constant_patterns=[],
+    type_patterns=[],
+)
+
+
+# Kotlin specification
+KOTLIN_SPEC = LanguageSpec(
+    ts_language="kotlin",
+    symbol_node_types={
+        "function_declaration": "function",
+        "class_declaration": "class",
+        "object_declaration": "class",
+    },
+    name_fields={
+        # Kotlin uses child types, not field names; handled in _extract_name
+    },
+    param_fields={},
+    return_type_fields={},
+    docstring_strategy="preceding_comment",
+    decorator_node_type="annotation",
+    container_node_types=["class_declaration", "object_declaration"],
+    constant_patterns=[],
+    type_patterns=["class_declaration"],
+)
+
+
+# Swift specification
+SWIFT_SPEC = LanguageSpec(
+    ts_language="swift",
+    symbol_node_types={
+        "function_declaration": "function",
+        "class_declaration": "class",
+        "protocol_declaration": "type",
+    },
+    name_fields={
+        "function_declaration": "name",
+        "class_declaration": "name",
+        "protocol_declaration": "name",
+    },
+    param_fields={},
+    return_type_fields={
+        "function_declaration": "return_type",
+    },
+    docstring_strategy="preceding_comment",
+    decorator_node_type=None,
+    container_node_types=["class_declaration", "protocol_declaration"],
+    constant_patterns=[],
+    type_patterns=["class_declaration", "protocol_declaration"],
+)
+
+
 # Language registry
 LANGUAGE_REGISTRY = {
     "python": PYTHON_SPEC,
@@ -286,6 +429,11 @@ LANGUAGE_REGISTRY = {
     "rust": RUST_SPEC,
     "java": JAVA_SPEC,
     "php": PHP_SPEC,
+    "c": C_SPEC,
+    "csharp": CSHARP_SPEC,
+    "ruby": RUBY_SPEC,
+    "kotlin": KOTLIN_SPEC,
+    "swift": SWIFT_SPEC,
 }
 
 

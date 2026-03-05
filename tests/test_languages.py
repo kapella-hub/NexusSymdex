@@ -365,3 +365,405 @@ def test_parse_js_chained_alias_assignment():
     assert ct is not None
     assert "Alias for" in ct.docstring
 
+
+# ---- File preamble tests ----
+
+PYTHON_WITH_PREAMBLE = '''
+"""Module for user management."""
+
+import os
+from typing import Optional
+
+MAX_USERS = 100
+
+def get_user(user_id: int) -> Optional[dict]:
+    """Get a user by ID."""
+    return None
+'''
+
+
+def test_file_preamble_captured():
+    """Test that file preamble (imports, module docstring) is captured."""
+    symbols = parse_file(PYTHON_WITH_PREAMBLE, "users.py", "python")
+
+    preamble = next((s for s in symbols if s.kind == "module"), None)
+    assert preamble is not None
+    assert preamble.name == "__preamble__"
+    assert preamble.line == 1
+    assert preamble.byte_offset == 0
+    assert preamble.byte_length > 0
+    assert preamble.signature == "# users.py"
+
+
+def test_no_preamble_when_symbol_at_start():
+    """Test that no preamble is created when the first symbol starts at byte 0."""
+    source = 'def foo(): pass'
+    symbols = parse_file(source, "no_preamble.py", "python")
+
+    preamble = next((s for s in symbols if s.kind == "module"), None)
+    assert preamble is None
+
+
+def test_no_preamble_for_whitespace_only():
+    """Test that no preamble is created when only whitespace precedes first symbol."""
+    source = '\n\n\ndef foo(): pass'
+    symbols = parse_file(source, "ws_only.py", "python")
+
+    preamble = next((s for s in symbols if s.kind == "module"), None)
+    assert preamble is None
+
+
+# ---- Module-level variable extraction tests ----
+
+PYTHON_VARIABLES = '''
+app = Flask(__name__)
+config = {"debug": True}
+MAX_SIZE = 100
+
+def main():
+    pass
+'''
+
+
+def test_parse_python_module_variables():
+    """Test that module-level variables are captured."""
+    symbols = parse_file(PYTHON_VARIABLES, "app.py", "python")
+
+    app = next((s for s in symbols if s.name == "app"), None)
+    assert app is not None
+    assert app.kind == "variable"
+
+    config = next((s for s in symbols if s.name == "config"), None)
+    assert config is not None
+    assert config.kind == "variable"
+
+    max_size = next((s for s in symbols if s.name == "MAX_SIZE"), None)
+    assert max_size is not None
+    assert max_size.kind == "constant"
+
+
+PYTHON_DUNDER_SKIP = '''
+__all__ = ["foo", "bar"]
+__version__ = "1.0.0"
+
+def foo():
+    pass
+'''
+
+
+def test_python_dunder_variables_skipped():
+    """Test that dunder variables like __all__ and __version__ are not captured."""
+    symbols = parse_file(PYTHON_DUNDER_SKIP, "mod.py", "python")
+
+    dunder = [s for s in symbols if s.name.startswith("__") and s.name.endswith("__") and s.kind in ("variable", "constant")]
+    assert len(dunder) == 0
+
+
+PYTHON_INNER_ASSIGNMENT = '''
+def setup():
+    db = connect()
+    return db
+'''
+
+
+def test_python_inner_assignments_not_captured():
+    """Test that assignments inside functions are NOT captured as variables."""
+    symbols = parse_file(PYTHON_INNER_ASSIGNMENT, "inner.py", "python")
+
+    db = next((s for s in symbols if s.name == "db"), None)
+    assert db is None
+
+
+JS_VARIABLES = '''
+const API_URL = "https://api.example.com";
+const config = { debug: true };
+let counter = 0;
+
+function main() {}
+'''
+
+
+def test_parse_js_module_variables():
+    """Test that JS module-level variables are captured."""
+    symbols = parse_file(JS_VARIABLES, "config.js", "javascript")
+
+    api_url = next((s for s in symbols if s.name == "API_URL"), None)
+    assert api_url is not None
+    assert api_url.kind == "constant"
+
+    config = next((s for s in symbols if s.name == "config"), None)
+    assert config is not None
+    assert config.kind == "variable"
+
+    counter = next((s for s in symbols if s.name == "counter"), None)
+    assert counter is not None
+    assert counter.kind == "variable"
+
+
+# ---- C parsing tests ----
+
+C_SOURCE = '''
+// Add two numbers.
+int add(int a, int b) {
+    return a + b;
+}
+
+struct Point {
+    int x;
+    int y;
+};
+
+enum Color { RED, GREEN, BLUE };
+
+typedef unsigned long ulong;
+'''
+
+
+def test_parse_c():
+    """Test C parsing."""
+    symbols = parse_file(C_SOURCE, "math.c", "c")
+
+    add = next((s for s in symbols if s.name == "add"), None)
+    assert add is not None
+    assert add.kind == "function"
+    assert "Add two numbers" in add.docstring
+
+    point = next((s for s in symbols if s.name == "Point"), None)
+    assert point is not None
+    assert point.kind == "type"
+
+    color = next((s for s in symbols if s.name == "Color"), None)
+    assert color is not None
+    assert color.kind == "type"
+
+    ulong = next((s for s in symbols if s.name == "ulong"), None)
+    assert ulong is not None
+    assert ulong.kind == "type"
+
+
+# ---- C# parsing tests ----
+
+CSHARP_SOURCE = '''
+using System;
+
+/// A simple calculator.
+public class Calculator {
+    /// Add two numbers.
+    public int Add(int a, int b) {
+        return a + b;
+    }
+}
+
+public interface ICalculator {
+    int Calculate(int a, int b);
+}
+
+public struct Point {
+    public int X;
+    public int Y;
+}
+
+public enum Color {
+    Red,
+    Green,
+    Blue
+}
+'''
+
+
+def test_parse_csharp():
+    """Test C# parsing."""
+    symbols = parse_file(CSHARP_SOURCE, "Calc.cs", "csharp")
+
+    calc = next((s for s in symbols if s.name == "Calculator"), None)
+    assert calc is not None
+    assert calc.kind == "class"
+    assert "A simple calculator" in calc.docstring
+
+    add = next((s for s in symbols if s.name == "Add"), None)
+    assert add is not None
+    assert add.kind == "method"
+    assert "Add two numbers" in add.docstring
+
+    icalc = next((s for s in symbols if s.name == "ICalculator"), None)
+    assert icalc is not None
+    assert icalc.kind == "type"
+
+    point = next((s for s in symbols if s.name == "Point"), None)
+    assert point is not None
+    assert point.kind == "type"
+
+    color = next((s for s in symbols if s.name == "Color"), None)
+    assert color is not None
+    assert color.kind == "type"
+
+
+# ---- Ruby parsing tests ----
+
+RUBY_SOURCE = '''
+# Add two numbers.
+def add(a, b)
+  a + b
+end
+
+class Calculator
+  # Multiply two numbers.
+  def multiply(a, b)
+    a * b
+  end
+end
+
+module MathUtils
+  def self.subtract(a, b)
+    a - b
+  end
+end
+'''
+
+
+def test_parse_ruby():
+    """Test Ruby parsing."""
+    symbols = parse_file(RUBY_SOURCE, "math.rb", "ruby")
+
+    add = next((s for s in symbols if s.name == "add"), None)
+    assert add is not None
+    assert add.kind == "function"
+    assert "Add two numbers" in add.docstring
+
+    calc = next((s for s in symbols if s.name == "Calculator"), None)
+    assert calc is not None
+    assert calc.kind == "class"
+
+    multiply = next((s for s in symbols if s.name == "multiply"), None)
+    assert multiply is not None
+    assert multiply.kind == "method"
+    assert "Multiply two numbers" in multiply.docstring
+
+    math_utils = next((s for s in symbols if s.name == "MathUtils"), None)
+    assert math_utils is not None
+    assert math_utils.kind == "class"
+
+
+# ---- Kotlin parsing tests ----
+
+KOTLIN_SOURCE = '''
+// Add two numbers.
+fun add(a: Int, b: Int): Int {
+    return a + b
+}
+
+class Calculator {
+    // Multiply two numbers.
+    fun multiply(a: Int, b: Int): Int {
+        return a * b
+    }
+}
+
+interface Operable {
+    fun operate(a: Int, b: Int): Int
+}
+
+data class Point(val x: Int, val y: Int)
+
+object Singleton {
+    fun getInstance(): Singleton = this
+}
+
+enum class Color { RED, GREEN, BLUE }
+'''
+
+
+def test_parse_kotlin():
+    """Test Kotlin parsing."""
+    symbols = parse_file(KOTLIN_SOURCE, "math.kt", "kotlin")
+
+    add = next((s for s in symbols if s.name == "add"), None)
+    assert add is not None
+    assert add.kind == "function"
+    assert "Add two numbers" in add.docstring
+
+    calc = next((s for s in symbols if s.name == "Calculator"), None)
+    assert calc is not None
+    assert calc.kind == "class"
+
+    multiply = next((s for s in symbols if s.name == "multiply"), None)
+    assert multiply is not None
+    assert multiply.kind == "method"
+
+    operable = next((s for s in symbols if s.name == "Operable"), None)
+    assert operable is not None
+    assert operable.kind == "type"
+
+    point = next((s for s in symbols if s.name == "Point"), None)
+    assert point is not None
+    assert point.kind == "class"
+
+    singleton = next((s for s in symbols if s.name == "Singleton"), None)
+    assert singleton is not None
+    assert singleton.kind == "class"
+
+    color = next((s for s in symbols if s.name == "Color"), None)
+    assert color is not None
+    assert color.kind == "type"
+
+
+# ---- Swift parsing tests ----
+
+SWIFT_SOURCE = '''
+/// Add two numbers.
+func add(a: Int, b: Int) -> Int {
+    return a + b
+}
+
+class Calculator {
+    /// Multiply two numbers.
+    func multiply(a: Int, b: Int) -> Int {
+        return a * b
+    }
+}
+
+struct Point {
+    var x: Int
+    var y: Int
+}
+
+protocol Operable {
+    func operate(a: Int, b: Int) -> Int
+}
+
+enum Color {
+    case red, green, blue
+}
+'''
+
+
+def test_parse_swift():
+    """Test Swift parsing."""
+    symbols = parse_file(SWIFT_SOURCE, "math.swift", "swift")
+
+    add = next((s for s in symbols if s.name == "add"), None)
+    assert add is not None
+    assert add.kind == "function"
+    assert "Add two numbers" in add.docstring
+
+    calc = next((s for s in symbols if s.name == "Calculator"), None)
+    assert calc is not None
+    assert calc.kind == "class"
+
+    multiply = next((s for s in symbols if s.name == "multiply"), None)
+    assert multiply is not None
+    assert multiply.kind == "method"
+    assert "Multiply two numbers" in multiply.docstring
+
+    point = next((s for s in symbols if s.name == "Point"), None)
+    assert point is not None
+    assert point.kind == "type"
+
+    operable = next((s for s in symbols if s.name == "Operable"), None)
+    assert operable is not None
+    assert operable.kind == "type"
+
+    color = next((s for s in symbols if s.name == "Color"), None)
+    assert color is not None
+    assert color.kind == "type"
+

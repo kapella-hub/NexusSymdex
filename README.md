@@ -6,8 +6,10 @@ Instead of dumping entire files into context, nexus-symdex parses your codebase 
 
 ## Features
 
-- **7 languages**: Python, JavaScript, TypeScript, Go, Rust, Java, PHP
-- **Smart symbol extraction**: Captures declared functions, classes, methods, constants, types — plus JS/TS assigned functions (`res.send = function() {}`), arrow functions, CommonJS exports, and prototype assignments
+- **12 languages**: Python, JavaScript, TypeScript, Go, Rust, Java, PHP, C, C#, Ruby, Kotlin, Swift
+- **Smart symbol extraction**: Captures functions, classes, methods, constants, types, variables, and module preambles — plus JS/TS assigned functions (`res.send = function() {}`), arrow functions, CommonJS exports, and prototype assignments
+- **Scope-aware references**: Callers/callees resolved with file-scope priority (same file > imported file > dotted name > fallback), minimizing false positives
+- **Inline imports**: `get_symbol` and `get_symbols` can include file import statements for full context
 - **Byte-offset retrieval**: O(1) source lookup via stored offsets, no re-parsing
 - **Incremental indexing**: Only re-parse changed files (hash-based or git-diff)
 - **Architecture intelligence**: Dead code detection, import graphs, impact analysis, architecture maps
@@ -59,8 +61,8 @@ Add to your MCP client config:
 | `get_file_tree` | Get file tree with per-file summaries |
 | `get_file_outline` | Get all symbols in a file (signatures only, no source) |
 | `get_repo_outline` | High-level overview of an entire repo |
-| `get_symbol` | Get a single symbol by ID with full source |
-| `get_symbols` | Batch-get multiple symbols by ID |
+| `get_symbol` | Get a single symbol by ID with full source; `include_imports` for file context |
+| `get_symbols` | Batch-get multiple symbols by ID; `include_imports` for file context |
 | `search_symbols` | Search symbols by name, kind, file pattern |
 | `search_text` | Regex search across indexed source files |
 | `search_all_repos` | Search across all indexed repositories |

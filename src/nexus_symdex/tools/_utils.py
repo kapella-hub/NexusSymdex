@@ -22,6 +22,71 @@ def resolve_repo(repo: str, storage_path: Optional[str] = None) -> tuple[str, st
     return matching[0]["repo"].split("/", 1)
 
 
+def resolve_call_targets(index, call_name: str, caller_file: str) -> list[str]:
+    """Resolve a call reference name to the most likely symbol IDs.
+
+    Uses scope-aware matching with priority:
+    1. Same file, exact name match
+    2. Imported file, exact name match
+    3. Dotted name match (e.g., call "obj.method" matches symbol qualified_name "Obj.method")
+    4. Any file, exact name match (fallback)
+
+    Returns list of symbol IDs, best matches first.
+    """
+    # Get imports for the caller's file
+    imported_files: set[str] = set()
+    for ref in index.references:
+        if ref.get("type") == "import" and ref.get("file") == caller_file:
+            imp_name = ref.get("name", "")
+            # Try to resolve import to a file
+            base = imp_name.split("/")[-1].split(".")[-1]
+            for sf in index.source_files:
+                if (
+                    sf.endswith(f"/{base}.py")
+                    or sf.endswith(f"/{base}.js")
+                    or sf.endswith(f"/{base}.ts")
+                    or sf == f"{base}.py"
+                    or sf == f"{base}.js"
+                ):
+                    imported_files.add(sf)
+
+    # Strip common prefixes from call name for matching
+    # e.g., "self.parse" -> "parse", "this.render" -> "render"
+    bare_name = call_name
+    if "." in call_name:
+        parts = call_name.split(".")
+        bare_name = parts[-1]
+
+    same_file: list[str] = []
+    imported: list[str] = []
+    dotted: list[str] = []
+    fallback: list[str] = []
+
+    for sym in index.symbols:
+        sym_name = sym.get("name", "")
+        sym_qname = sym.get("qualified_name", "")
+        sym_file = sym.get("file", "")
+
+        name_match = sym_name == bare_name or sym_name == call_name
+        qname_match = sym_qname == call_name or sym_qname.endswith(f".{bare_name}")
+
+        if not name_match and not qname_match:
+            continue
+
+        sid = sym["id"]
+
+        if sym_file == caller_file:
+            same_file.append(sid)
+        elif sym_file in imported_files:
+            imported.append(sid)
+        elif qname_match and "." in call_name:
+            dotted.append(sid)
+        else:
+            fallback.append(sid)
+
+    return same_file + imported + dotted + fallback
+
+
 def generate_file_summaries(symbols: list[Symbol]) -> dict[str, str]:
     """Generate one-line summaries per file from symbol data.
 

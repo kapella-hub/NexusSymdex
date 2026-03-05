@@ -4,7 +4,7 @@ import time
 from typing import Optional
 
 from ..storage import IndexStore, CodeIndex, score_symbol, record_savings, estimate_savings, cost_avoided
-from ._utils import resolve_repo
+from ._utils import resolve_repo, resolve_call_targets
 
 
 def _find_dependency_ids(index, symbol_id: str) -> list[str]:
@@ -31,14 +31,16 @@ def _find_dependency_ids(index, symbol_id: str) -> list[str]:
         if sym_start <= ref_line <= sym_end:
             callee_names.add(ref.get("name", ""))
 
-    # Resolve callee names to symbol IDs
+    # Resolve each callee name with scope awareness
     dep_ids = []
-    for sym in index.symbols:
-        name = sym.get("name", "")
-        qname = sym.get("qualified_name", "")
-        if name in callee_names or qname in callee_names:
-            if sym["id"] != symbol_id:  # skip self
-                dep_ids.append(sym["id"])
+    seen: set[str] = set()
+    for callee_name in callee_names:
+        targets = resolve_call_targets(index, callee_name, target_file)
+        for tid in targets:
+            if tid != symbol_id and tid not in seen:
+                seen.add(tid)
+                dep_ids.append(tid)
+                break  # Take best match only
 
     return dep_ids
 

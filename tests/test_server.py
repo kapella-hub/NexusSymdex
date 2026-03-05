@@ -3,7 +3,7 @@
 import pytest
 import json
 
-from nexus_symdex.server import server, list_tools, call_tool
+from nexus_symdex.server import server, list_tools, call_tool, _get_file_imports
 
 
 @pytest.mark.asyncio
@@ -56,3 +56,55 @@ async def test_search_symbols_tool_schema():
     # kind should have enum
     assert "enum" in props["kind"]
     assert set(props["kind"]["enum"]) == {"function", "class", "method", "constant", "type"}
+
+
+@pytest.mark.asyncio
+async def test_get_symbol_has_include_imports_param():
+    """Test get_symbol tool schema includes include_imports parameter."""
+    tools = await list_tools()
+    tool = next(t for t in tools if t.name == "get_symbol")
+    props = tool.inputSchema["properties"]
+    assert "include_imports" in props
+    assert props["include_imports"]["type"] == "boolean"
+    assert props["include_imports"]["default"] is False
+
+
+@pytest.mark.asyncio
+async def test_get_symbols_has_include_imports_param():
+    """Test get_symbols tool schema includes include_imports parameter."""
+    tools = await list_tools()
+    tool = next(t for t in tools if t.name == "get_symbols")
+    props = tool.inputSchema["properties"]
+    assert "include_imports" in props
+    assert props["include_imports"]["type"] == "boolean"
+    assert props["include_imports"]["default"] is False
+
+
+def test_get_file_imports_filters_correctly():
+    """Test _get_file_imports returns only import refs for the given file."""
+
+    class FakeIndex:
+        references = [
+            {"type": "import", "name": "os", "line": 1, "file": "main.py"},
+            {"type": "import", "name": "sys", "line": 2, "file": "main.py"},
+            {"type": "call", "name": "print", "line": 5, "file": "main.py"},
+            {"type": "import", "name": "json", "line": 1, "file": "other.py"},
+        ]
+
+    result = _get_file_imports(FakeIndex(), "main.py")
+    assert result == [
+        {"name": "os", "line": 1},
+        {"name": "sys", "line": 2},
+    ]
+
+
+def test_get_file_imports_empty_for_unknown_file():
+    """Test _get_file_imports returns empty list for a file with no imports."""
+
+    class FakeIndex:
+        references = [
+            {"type": "import", "name": "os", "line": 1, "file": "main.py"},
+        ]
+
+    result = _get_file_imports(FakeIndex(), "nonexistent.py")
+    assert result == []

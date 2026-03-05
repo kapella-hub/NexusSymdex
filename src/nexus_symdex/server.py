@@ -31,6 +31,17 @@ from .tools.get_change_summary import get_change_summary
 from .tools.get_architecture_map import get_architecture_map
 
 from .tools.find_dead_code import find_dead_code
+from .tools._utils import resolve_repo
+from .storage import IndexStore
+
+
+def _get_file_imports(index, file_path: str) -> list[dict]:
+    """Get import references for a file."""
+    return [
+        {"name": ref["name"], "line": ref["line"]}
+        for ref in index.references
+        if ref.get("type") == "import" and ref.get("file") == file_path
+    ]
 
 
 # Create server
@@ -172,6 +183,11 @@ async def list_tools() -> list[Tool]:
                         "type": "integer",
                         "description": "Number of lines before/after symbol to include for context",
                         "default": 0
+                    },
+                    "include_imports": {
+                        "type": "boolean",
+                        "description": "Include file import statements",
+                        "default": False
                     }
                 },
                 "required": ["repo", "symbol_id"]
@@ -191,6 +207,11 @@ async def list_tools() -> list[Tool]:
                         "type": "array",
                         "items": {"type": "string"},
                         "description": "List of symbol IDs to retrieve"
+                    },
+                    "include_imports": {
+                        "type": "boolean",
+                        "description": "Include file import statements for each symbol's file",
+                        "default": False
                     }
                 },
                 "required": ["repo", "symbol_ids"]
@@ -586,12 +607,34 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 context_lines=arguments.get("context_lines", 0),
                 storage_path=storage_path
             )
+            if arguments.get("include_imports") and "error" not in result:
+                owner, repo_name = resolve_repo(arguments["repo"], storage_path)
+                store = IndexStore(base_path=storage_path)
+                index = store.load_index(owner, repo_name)
+                if index:
+                    result["imports"] = _get_file_imports(index, result["file"])
         elif name == "get_symbols":
             result = get_symbols(
                 repo=arguments["repo"],
                 symbol_ids=arguments["symbol_ids"],
                 storage_path=storage_path
             )
+            if arguments.get("include_imports") and "error" not in result:
+                owner, repo_name = resolve_repo(arguments["repo"], storage_path)
+                store = IndexStore(base_path=storage_path)
+                index = store.load_index(owner, repo_name)
+                if index:
+                    seen_files: set[str] = set()
+                    all_imports: list[dict] = []
+                    for sym in result.get("symbols", []):
+                        f = sym["file"]
+                        if f not in seen_files:
+                            seen_files.add(f)
+                            all_imports.extend(
+                                {"file": f, **imp}
+                                for imp in _get_file_imports(index, f)
+                            )
+                    result["imports"] = all_imports
         elif name == "search_symbols":
             result = search_symbols(
                 repo=arguments["repo"],

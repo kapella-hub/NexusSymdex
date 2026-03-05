@@ -102,6 +102,48 @@ def _extract_node_references(node, source_bytes: bytes, language: str, refs: lis
                     name = _node_text(child, source_bytes)
                     refs.append({"type": "import", "name": name, "line": line, "from_symbol": None})
 
+    elif language == "c":
+        if node_type == "preproc_include":
+            path_node = node.child_by_field_name("path")
+            if path_node:
+                name = _node_text(path_node, source_bytes).strip('"<>')
+                refs.append({"type": "import", "name": name, "line": line, "from_symbol": None})
+
+    elif language == "csharp":
+        if node_type == "using_directive":
+            for child in node.children:
+                if child.type in ("identifier", "qualified_name"):
+                    name = _node_text(child, source_bytes)
+                    refs.append({"type": "import", "name": name, "line": line, "from_symbol": None})
+                    break
+
+    elif language == "ruby":
+        if node_type == "call" and node.child_count > 0:
+            method = node.child_by_field_name("method")
+            if method and _node_text(method, source_bytes) in ("require", "require_relative"):
+                args = node.child_by_field_name("arguments")
+                if args:
+                    for child in args.children:
+                        if child.type == "string":
+                            name = _node_text(child, source_bytes).strip("'\"")
+                            refs.append({"type": "import", "name": name, "line": line, "from_symbol": None})
+
+    elif language == "kotlin":
+        if node_type == "import_header":
+            for child in node.children:
+                if child.type == "identifier":
+                    name = _node_text(child, source_bytes)
+                    refs.append({"type": "import", "name": name, "line": line, "from_symbol": None})
+                    break
+
+    elif language == "swift":
+        if node_type == "import_declaration":
+            for child in node.children:
+                if child.type == "identifier":
+                    name = _node_text(child, source_bytes)
+                    refs.append({"type": "import", "name": name, "line": line, "from_symbol": None})
+                    break
+
     # --- Calls (language-agnostic for common patterns) ---
     if node_type == "call" and language == "python":
         func = node.child_by_field_name("function")
@@ -109,7 +151,7 @@ def _extract_node_references(node, source_bytes: bytes, language: str, refs: lis
             name = _node_text(func, source_bytes)
             refs.append({"type": "call", "name": name, "line": line, "from_symbol": None})
 
-    elif node_type == "call_expression" and language in ("javascript", "typescript", "go", "rust"):
+    elif node_type == "call_expression" and language in ("javascript", "typescript", "go", "rust", "c"):
         func = node.child_by_field_name("function")
         if func:
             name = _node_text(func, source_bytes)
@@ -135,6 +177,32 @@ def _extract_node_references(node, source_bytes: bytes, language: str, refs: lis
         if name_node:
             name = _node_text(name_node, source_bytes)
             refs.append({"type": "call", "name": name, "line": line, "from_symbol": None})
+
+    elif node_type == "invocation_expression" and language == "csharp":
+        func = node.child_by_field_name("function")
+        if func:
+            name = _node_text(func, source_bytes)
+            refs.append({"type": "call", "name": name, "line": line, "from_symbol": None})
+
+    elif node_type == "call" and language == "ruby":
+        method = node.child_by_field_name("method")
+        if method:
+            method_name = _node_text(method, source_bytes)
+            # Skip require/require_relative - already captured as imports
+            if method_name not in ("require", "require_relative"):
+                name = method_name
+                receiver = node.child_by_field_name("receiver")
+                if receiver:
+                    name = f"{_node_text(receiver, source_bytes)}.{name}"
+                refs.append({"type": "call", "name": name, "line": line, "from_symbol": None})
+
+    elif node_type == "call_expression" and language in ("kotlin", "swift"):
+        # Kotlin/Swift: first child is the function identifier
+        for child in node.children:
+            if child.type in ("simple_identifier", "navigation_expression"):
+                name = _node_text(child, source_bytes)
+                refs.append({"type": "call", "name": name, "line": line, "from_symbol": None})
+                break
 
 
 def _node_text(node, source_bytes: bytes) -> str:
