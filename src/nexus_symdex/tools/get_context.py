@@ -145,7 +145,8 @@ def get_context(
         file_path = sym.get("file", "")
 
         # Skip if this symbol is entirely contained within an already-included symbol
-        if _is_contained(file_path, byte_offset, byte_offset + byte_length):
+        # Guard against degenerate zero-offset/zero-length symbols being suppressed
+        if byte_length > 0 and _is_contained(file_path, byte_offset, byte_offset + byte_length):
             return False
 
         if tokens_used + estimated_tokens > budget_tokens:

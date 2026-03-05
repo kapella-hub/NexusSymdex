@@ -57,9 +57,15 @@ def _extract_node_references(node, source_bytes: bytes, language: str, refs: lis
             for child in node.children:
                 if child.type == "dotted_name" and module is None:
                     module = _node_text(child, source_bytes)
-                elif child.type == "dotted_name" and module is not None:
+                elif child.type in ("dotted_name", "identifier") and module is not None:
                     name = _node_text(child, source_bytes)
                     refs.append({"type": "import", "name": f"{module}.{name}", "line": line, "from_symbol": None})
+                elif child.type == "aliased_import" and module is not None:
+                    # from X import Y as Z — extract the original name
+                    name_node = child.child_by_field_name("name")
+                    if name_node:
+                        name = _node_text(name_node, source_bytes)
+                        refs.append({"type": "import", "name": f"{module}.{name}", "line": line, "from_symbol": None})
                 elif child.type == "import_prefix":
                     continue
             # If no named imports found (e.g. from X import *), record module
@@ -130,11 +136,13 @@ def _extract_node_references(node, source_bytes: bytes, language: str, refs: lis
 
     elif language == "kotlin":
         if node_type == "import_header":
+            # Extract full import path (skip the 'import' keyword token)
             for child in node.children:
-                if child.type == "identifier":
-                    name = _node_text(child, source_bytes)
-                    refs.append({"type": "import", "name": name, "line": line, "from_symbol": None})
-                    break
+                if child.type not in ("import",):
+                    name = _node_text(child, source_bytes).strip()
+                    if name:
+                        refs.append({"type": "import", "name": name, "line": line, "from_symbol": None})
+                        break
 
     elif language == "swift":
         if node_type == "import_declaration":

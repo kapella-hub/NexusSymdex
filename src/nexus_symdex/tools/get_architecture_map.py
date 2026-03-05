@@ -49,7 +49,7 @@ def get_architecture_map(
     importers: dict[str, set[str]] = defaultdict(set)  # file -> files that import it
 
     for ref in index.references:
-        if ref["type"] != "import":
+        if ref.get("type") != "import":
             continue
         importing_file = ref.get("file", "")
         module_name = ref.get("name", "")

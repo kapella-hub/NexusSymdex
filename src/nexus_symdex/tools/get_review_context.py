@@ -4,7 +4,7 @@ import time
 from typing import Optional
 
 from ..storage import IndexStore
-from ._utils import resolve_repo
+from ._utils import resolve_repo, resolve_call_targets
 
 
 def get_review_context(
@@ -83,7 +83,7 @@ def get_review_context(
                 if best_id and best_id not in changed_sym_ids:
                     caller_ids.add(best_id)
 
-    # 3. Find dependencies of changed symbols
+    # 3. Find dependencies of changed symbols (scope-aware resolution)
     dep_ids = set()
     for sym in changed_symbols:
         sym_file = sym.get("file", "")
@@ -99,12 +99,10 @@ def get_review_context(
             ref_line = ref.get("line", 0)
             if sym_start <= ref_line <= sym_end:
                 callee_name = ref.get("name", "")
-                bare_name = callee_name.split(".")[-1] if "." in callee_name else callee_name
-                for candidate in index.symbols:
-                    cand_name = candidate.get("name", "")
-                    if cand_name == bare_name and candidate["id"] not in changed_sym_ids:
-                        dep_ids.add(candidate["id"])
-                        break
+                targets = resolve_call_targets(index, callee_name, sym_file)
+                for tid in targets[:1]:  # take best match only
+                    if tid not in changed_sym_ids:
+                        dep_ids.add(tid)
 
     # 4. Find related test files
     test_files = set()

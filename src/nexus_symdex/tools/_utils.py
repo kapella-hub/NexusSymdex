@@ -47,6 +47,7 @@ def resolve_call_targets(index, call_name: str, caller_file: str) -> list[str]:
                     or sf.endswith(f"/{base}.ts")
                     or sf == f"{base}.py"
                     or sf == f"{base}.js"
+                    or sf == f"{base}.ts"
                 ):
                     imported_files.add(sf)
 

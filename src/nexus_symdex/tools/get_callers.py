@@ -47,7 +47,7 @@ def get_callers(
 
     callers = []
     for ref in index.references:
-        if ref["type"] != "call":
+        if ref.get("type") != "call":
             continue
 
         ref_name = ref.get("name", "")

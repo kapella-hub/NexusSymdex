@@ -49,7 +49,7 @@ def get_import_graph(
     external_imports: set[str] = set()
 
     for ref in index.references:
-        if ref["type"] != "import":
+        if ref.get("type") != "import":
             continue
 
         importing_file = ref.get("file", "")

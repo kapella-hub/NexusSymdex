@@ -103,11 +103,13 @@ JAVASCRIPT_SPEC = LanguageSpec(
         "function_declaration": "name",
         "class_declaration": "name",
         "method_definition": "name",
+        "generator_function_declaration": "name",
     },
     param_fields={
         "function_declaration": "parameters",
         "method_definition": "parameters",
         "arrow_function": "parameters",
+        "generator_function_declaration": "parameters",
     },
     return_type_fields={},
     docstring_strategy="preceding_comment",
@@ -401,11 +403,15 @@ SWIFT_SPEC = LanguageSpec(
     symbol_node_types={
         "function_declaration": "function",
         "class_declaration": "class",
+        "struct_declaration": "type",
+        "enum_declaration": "type",
         "protocol_declaration": "type",
     },
     name_fields={
         "function_declaration": "name",
         "class_declaration": "name",
+        "struct_declaration": "name",
+        "enum_declaration": "name",
         "protocol_declaration": "name",
     },
     param_fields={},
@@ -414,9 +420,9 @@ SWIFT_SPEC = LanguageSpec(
     },
     docstring_strategy="preceding_comment",
     decorator_node_type=None,
-    container_node_types=["class_declaration", "protocol_declaration"],
+    container_node_types=["class_declaration", "struct_declaration", "enum_declaration", "protocol_declaration"],
     constant_patterns=[],
-    type_patterns=["class_declaration", "protocol_declaration"],
+    type_patterns=["class_declaration", "struct_declaration", "enum_declaration", "protocol_declaration"],
 )
 
 

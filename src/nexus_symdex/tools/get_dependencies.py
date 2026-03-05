@@ -58,13 +58,13 @@ def get_dependencies(
         if ref_file != target_file:
             continue
 
-        if ref["type"] == "import":
+        if ref.get("type") == "import":
             # Include file-level imports (they're dependencies of all symbols in the file)
             imports.append({
                 "name": ref["name"],
                 "line": ref_line,
             })
-        elif ref["type"] == "call":
+        elif ref.get("type") == "call":
             if sym_start <= ref_line <= sym_end:
                 calls.append({
                     "name": ref["name"],

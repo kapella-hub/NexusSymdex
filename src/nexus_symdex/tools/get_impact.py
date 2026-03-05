@@ -120,7 +120,7 @@ def _find_caller_symbol_ids(index, symbol_id: str) -> list[str]:
     result: list[str] = []
 
     for ref in index.references:
-        if ref["type"] != "call":
+        if ref.get("type") != "call":
             continue
 
         ref_name = ref.get("name", "")

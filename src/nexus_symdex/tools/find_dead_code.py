@@ -19,7 +19,8 @@ _LIVE_DECORATOR_PATTERNS = re.compile(
 
 # File path patterns that indicate test files
 _TEST_FILE_PATTERNS = re.compile(
-    r"(^|/)tests?/|/test_[^/]+$|_test\.[^/]+$"
+    r"(^|/)tests?/|(^|/)specs?/|/test_[^/]+$|_test\.[^/]+$|\.spec\.[^/]+$",
+    re.IGNORECASE,
 )
 
 
