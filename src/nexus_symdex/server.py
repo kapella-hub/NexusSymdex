@@ -32,6 +32,9 @@ from .tools.get_architecture_map import get_architecture_map
 
 from .tools.get_review_context import get_review_context as get_review_context_fn
 from .tools.find_dead_code import find_dead_code
+from .tools.learn_from_changes import learn_from_changes
+from .tools.recall_with_code import recall_with_code
+from .tools.review_with_history import review_with_history
 from .tools._utils import resolve_repo
 from .storage import IndexStore
 
@@ -584,6 +587,47 @@ async def list_tools() -> list[Tool]:
                 "required": ["repo", "changed_files"]
             }
         ),
+        Tool(
+            name="learn_from_changes",
+            description="Record code changes to NexusCortex memory. Detects current changes vs stored index and learns the action/outcome for future recall. Requires NexusCortex to be running.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {"type": "string", "description": "Repository identifier (owner/repo or just repo name)"},
+                    "path": {"type": "string", "description": "Local folder path for change detection"},
+                    "message": {"type": "string", "description": "Optional description of what changed and why"},
+                },
+                "required": ["repo"],
+            },
+        ),
+        Tool(
+            name="recall_with_code",
+            description="Recall memories from NexusCortex and cross-reference with current code symbols. Combines historical context with live code intelligence for richer task context.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "task": {"type": "string", "description": "Description of what you're trying to do"},
+                    "repo": {"type": "string", "description": "Repository identifier (owner/repo or just repo name)"},
+                    "tags": {"type": "array", "items": {"type": "string"}, "description": "Optional filter tags"},
+                    "top_k": {"type": "integer", "description": "Max memories to recall (default 5)", "default": 5},
+                    "budget_tokens": {"type": "integer", "description": "Token budget for code context (default 4000)", "default": 4000},
+                },
+                "required": ["task", "repo"],
+            },
+        ),
+        Tool(
+            name="review_with_history",
+            description="PR review context enriched with historical memory. Combines changed symbols, callers, dependencies, and tests with NexusCortex memories about past changes to the same files.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {"type": "string", "description": "Repository identifier (owner/repo or just repo name)"},
+                    "changed_files": {"type": "array", "items": {"type": "string"}, "description": "List of file paths that changed"},
+                    "budget_tokens": {"type": "integer", "description": "Token budget (default 8000)", "default": 8000},
+                },
+                "required": ["repo", "changed_files"],
+            },
+        ),
     ]
 
 
@@ -770,6 +814,29 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             )
         elif name == "get_review_context":
             result = get_review_context_fn(
+                repo=arguments["repo"],
+                changed_files=arguments["changed_files"],
+                budget_tokens=arguments.get("budget_tokens", 8000),
+                storage_path=storage_path,
+            )
+        elif name == "learn_from_changes":
+            result = await learn_from_changes(
+                repo=arguments["repo"],
+                path=arguments.get("path"),
+                message=arguments.get("message"),
+                storage_path=storage_path,
+            )
+        elif name == "recall_with_code":
+            result = await recall_with_code(
+                task=arguments["task"],
+                repo=arguments["repo"],
+                tags=arguments.get("tags"),
+                top_k=arguments.get("top_k", 5),
+                budget_tokens=arguments.get("budget_tokens", 4000),
+                storage_path=storage_path,
+            )
+        elif name == "review_with_history":
+            result = await review_with_history(
                 repo=arguments["repo"],
                 changed_files=arguments["changed_files"],
                 budget_tokens=arguments.get("budget_tokens", 8000),

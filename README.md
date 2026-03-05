@@ -16,7 +16,7 @@ Instead of dumping entire files into context, nexus-symdex parses your codebase 
 - **Byte-offset retrieval**: O(1) source lookup via stored offsets, no re-parsing
 - **Incremental indexing**: Only re-parse changed files (hash-based or git-diff)
 - **Architecture intelligence**: Dead code detection, import graphs, impact analysis, architecture maps
-- **25 tools** for comprehensive code exploration
+- **28 tools** for comprehensive code exploration
 
 ## Installation
 
@@ -87,6 +87,9 @@ Add to your MCP client config:
 |------|-------------|
 | `get_context` | Fill a token budget with the most relevant symbols; optionally include dependencies; auto-deduplicates overlapping byte ranges |
 | `get_review_context` | Assemble minimal context for a PR review: changed symbols + callers + deps + related tests |
+| `learn_from_changes` | Detect code changes and record them to NexusCortex memory for future recall |
+| `recall_with_code` | Recall past experiences AND cross-reference with current code symbols |
+| `review_with_history` | PR review context enriched with historical memory about changed files |
 
 ### File Watching
 
@@ -170,9 +173,38 @@ src/nexus_symdex/
 |   |-- get_change_summary.py # Index-vs-current diffing
 |   |-- get_architecture_map.py # Auto layer classification
 |   \-- _utils.py          # Shared helpers (resolve_repo, file summaries, scope-aware resolution)
+|-- cortex/                # NexusCortex integration (optional)
 |-- security/              # Path validation, secret detection
 \-- summarizer/            # AI-powered symbol summaries (optional)
 ```
+
+## NexusCortex Integration
+
+When [NexusCortex](https://github.com/morganbarrett/nexus-cortex) is running, nexus-symdex gains persistent code memory:
+
+### Setup
+
+Set the environment variable to enable integration:
+
+```bash
+export NEXUS_CORTEX_URL=http://localhost:8000
+```
+
+### Integration Tools
+
+| Tool | Description |
+|------|-------------|
+| `learn_from_changes` | Detect code changes and record them to NexusCortex memory for future recall |
+| `recall_with_code` | Recall past experiences AND cross-reference with current code symbols |
+| `review_with_history` | PR review context enriched with historical memory about changed files |
+
+### How It Works
+
+- **learn_from_changes**: After editing code, this tool detects what changed (symbols added/modified/removed) and stores the action/outcome in NexusCortex. Future agents working on the same files get historical context.
+- **recall_with_code**: Queries NexusCortex for relevant memories, extracts keywords, then uses those keywords to focus the code context search. Returns both memories and relevant code symbols, plus cross-references showing which symbols appear in past memories.
+- **review_with_history**: Wraps the standard `get_review_context` with per-file historical lookups. Generates warnings when past changes to the same files caused regressions.
+
+All integration tools gracefully degrade when NexusCortex is unavailable -- they fall back to code-only results.
 
 ## Development
 
