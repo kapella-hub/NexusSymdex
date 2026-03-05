@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from ..parser import parse_file, LANGUAGE_EXTENSIONS
+from ..parser import parse_file, extract_references, LANGUAGE_EXTENSIONS
 from ..security import is_secret_file, is_binary_extension
 from ..storage import IndexStore
 from ..summarizer import summarize_symbols
@@ -285,6 +285,7 @@ async def index_repo(
 
             files_to_parse = set(changed) | set(new)
             new_symbols = []
+            new_refs: list[dict] = []
             languages: dict[str, int] = {}
             raw_files_subset: dict[str, str] = {}
 
@@ -299,6 +300,9 @@ async def index_repo(
                     if symbols:
                         new_symbols.extend(symbols)
                         raw_files_subset[path] = content
+                    for ref in extract_references(content, path, language):
+                        ref["file"] = path
+                        new_refs.append(ref)
                 except Exception:
                     warnings.append(f"Failed to parse {path}")
 
@@ -316,6 +320,7 @@ async def index_repo(
                 changed_files=changed, new_files=new, deleted_files=deleted,
                 new_symbols=new_symbols, raw_files=raw_files_subset,
                 languages=languages,
+                new_references=new_refs,
             )
 
             result = {
@@ -332,6 +337,7 @@ async def index_repo(
 
         # Full index path
         all_symbols = []
+        all_refs: list[dict] = []
         languages = {}
         raw_files = {}
         parsed_files = []
@@ -348,6 +354,9 @@ async def index_repo(
                     languages[language] = languages.get(language, 0) + 1
                     raw_files[path] = content
                     parsed_files.append(path)
+                for ref in extract_references(content, path, language):
+                    ref["file"] = path
+                    all_refs.append(ref)
             except Exception:
                 warnings.append(f"Failed to parse {path}")
                 continue
@@ -365,7 +374,8 @@ async def index_repo(
             source_files=parsed_files,
             symbols=all_symbols,
             raw_files=raw_files,
-            languages=languages
+            languages=languages,
+            references=all_refs,
         )
 
         result = {

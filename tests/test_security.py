@@ -5,7 +5,7 @@ import sys
 import pytest
 from pathlib import Path
 
-from jcodemunch_mcp.security import (
+from nexus_symdex.security import (
     validate_path,
     is_symlink_escape,
     is_secret_file,
@@ -226,7 +226,7 @@ class TestCompositeFilter:
 class TestDiscoverLocalFilesSecure:
     def test_excludes_secret_files(self, tmp_path):
         """Secret files are excluded from discovery."""
-        from jcodemunch_mcp.tools.index_folder import discover_local_files
+        from nexus_symdex.tools.index_folder import discover_local_files
 
         (tmp_path / "main.py").write_text("def main(): pass\n")
         (tmp_path / ".env").write_text("SECRET=foo\n")
@@ -241,7 +241,7 @@ class TestDiscoverLocalFilesSecure:
 
     def test_excludes_binary_files(self, tmp_path):
         """Binary files (by content) are excluded."""
-        from jcodemunch_mcp.tools.index_folder import discover_local_files
+        from nexus_symdex.tools.index_folder import discover_local_files
 
         (tmp_path / "good.py").write_text("x = 1\n")
         binary = tmp_path / "bad.py"
@@ -254,7 +254,7 @@ class TestDiscoverLocalFilesSecure:
 
     def test_respects_gitignore(self, tmp_path):
         """Local .gitignore is respected."""
-        from jcodemunch_mcp.tools.index_folder import discover_local_files
+        from nexus_symdex.tools.index_folder import discover_local_files
 
         (tmp_path / ".gitignore").write_text("ignored.py\n")
         (tmp_path / "kept.py").write_text("x = 1\n")
@@ -267,7 +267,7 @@ class TestDiscoverLocalFilesSecure:
 
     def test_extra_ignore_patterns(self, tmp_path):
         """Extra ignore patterns are applied."""
-        from jcodemunch_mcp.tools.index_folder import discover_local_files
+        from nexus_symdex.tools.index_folder import discover_local_files
 
         (tmp_path / "main.py").write_text("x = 1\n")
         (tmp_path / "temp.py").write_text("y = 2\n")
@@ -280,7 +280,7 @@ class TestDiscoverLocalFilesSecure:
     @pytest.mark.skipif(sys.platform == "win32", reason="Symlinks unreliable on Windows")
     def test_symlinks_skipped_by_default(self, tmp_path):
         """Symlinks are skipped when follow_symlinks=False."""
-        from jcodemunch_mcp.tools.index_folder import discover_local_files
+        from nexus_symdex.tools.index_folder import discover_local_files
 
         real = tmp_path / "real.py"
         real.write_text("x = 1\n")
@@ -298,7 +298,7 @@ class TestDiscoverLocalFilesSecure:
 class TestIndexRepoSecretFilter:
     def test_secret_files_filtered_in_discovery(self):
         """Secret files are excluded from remote repo file discovery."""
-        from jcodemunch_mcp.tools.index_repo import discover_source_files
+        from nexus_symdex.tools.index_repo import discover_source_files
 
         tree_entries = [
             {"path": "src/main.py", "type": "blob", "size": 1000},
@@ -320,8 +320,8 @@ class TestIndexRepoSecretFilter:
 class TestIndexStoreEncodingSafety:
     def test_get_symbol_content_handles_invalid_utf8(self, tmp_path):
         """get_symbol_content doesn't crash on invalid UTF-8."""
-        from jcodemunch_mcp.storage import IndexStore
-        from jcodemunch_mcp.parser import Symbol
+        from nexus_symdex.storage import IndexStore
+        from nexus_symdex.parser import Symbol
 
         store = IndexStore(base_path=str(tmp_path))
 

@@ -1,7 +1,7 @@
 """Tests for language-specific parsing."""
 
 import pytest
-from jcodemunch_mcp.parser import parse_file
+from nexus_symdex.parser import parse_file
 
 
 JAVASCRIPT_SOURCE = '''

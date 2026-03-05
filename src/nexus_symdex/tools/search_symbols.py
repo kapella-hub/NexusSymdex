@@ -4,7 +4,7 @@ import os
 import time
 from typing import Optional
 
-from ..storage import IndexStore, CodeIndex, record_savings, estimate_savings, cost_avoided
+from ..storage import IndexStore, CodeIndex, record_savings, estimate_savings, cost_avoided, score_symbol
 from ._utils import resolve_repo
 
 
@@ -59,7 +59,7 @@ def search_symbols(
 
     scored_results = []
     for sym in results[:max_results]:
-        score = _calculate_score(sym, query_lower, query_words)
+        score = score_symbol(sym, query_lower, query_words)
         scored_results.append({
             "id": sym["id"],
             "kind": sym["kind"],
@@ -104,49 +104,3 @@ def search_symbols(
             **cost_avoided(tokens_saved, total_saved),
         },
     }
-
-
-def _calculate_score(sym: dict, query_lower: str, query_words: set) -> int:
-    """Calculate search score for a symbol."""
-    score = 0
-
-    # 1. Exact name match (highest weight)
-    name_lower = sym.get("name", "").lower()
-    if query_lower == name_lower:
-        score += 20
-    elif query_lower in name_lower:
-        score += 10
-
-    # 2. Name word overlap
-    for word in query_words:
-        if word in name_lower:
-            score += 5
-
-    # 3. Signature match
-    sig_lower = sym.get("signature", "").lower()
-    if query_lower in sig_lower:
-        score += 8
-    for word in query_words:
-        if word in sig_lower:
-            score += 2
-
-    # 4. Summary match
-    summary_lower = sym.get("summary", "").lower()
-    if query_lower in summary_lower:
-        score += 5
-    for word in query_words:
-        if word in summary_lower:
-            score += 1
-
-    # 5. Keyword match
-    keywords = set(sym.get("keywords", []))
-    matching_keywords = query_words & keywords
-    score += len(matching_keywords) * 3
-
-    # 6. Docstring match
-    doc_lower = sym.get("docstring", "").lower()
-    for word in query_words:
-        if word in doc_lower:
-            score += 1
-
-    return score

@@ -4,8 +4,8 @@ import pytest
 import json
 from pathlib import Path
 
-from jcodemunch_mcp.storage import IndexStore, CodeIndex
-from jcodemunch_mcp.parser import Symbol
+from nexus_symdex.storage import IndexStore, CodeIndex
+from nexus_symdex.parser import Symbol
 
 
 def test_save_and_load_index(tmp_path):

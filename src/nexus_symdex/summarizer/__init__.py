@@ -1,6 +1,7 @@
 """Summarizer package for generating symbol summaries."""
 
 from .batch_summarize import (
+    BaseSummarizer,
     BatchSummarizer,
     GeminiBatchSummarizer,
     OpenAIBatchSummarizer,
@@ -11,6 +12,7 @@ from .batch_summarize import (
 )
 
 __all__ = [
+    "BaseSummarizer",
     "BatchSummarizer",
     "GeminiBatchSummarizer",
     "OpenAIBatchSummarizer",

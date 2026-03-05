@@ -1,6 +1,6 @@
 # Security Controls
 
-jcodemunch-mcp indexes source code from local folders and GitHub repositories. This document describes the security controls that protect against common risks when handling arbitrary codebases.
+nexus-symdex indexes source code from local folders and GitHub repositories. This document describes the security controls that protect against common risks when handling arbitrary codebases.
 
 ---
 

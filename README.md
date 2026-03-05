@@ -3,9 +3,9 @@
 Most AI agents explore repositories the expensive way:
 open entire files → skim thousands of irrelevant lines → repeat.
 
-**jCodeMunch indexes a codebase once and lets agents retrieve only the exact symbols they need** — functions, classes, methods, constants — with byte-level precision.
+**NexusSymdex indexes a codebase once and lets agents retrieve only the exact symbols they need** — functions, classes, methods, constants — with byte-level precision.
 
-| Task                   | Traditional approach | With jCodeMunch |
+| Task                   | Traditional approach | With NexusSymdex |
 | ---------------------- | -------------------- | --------------- |
 | Find a function        | ~40,000 tokens       | ~200 tokens     |
 | Understand module API  | ~15,000 tokens       | ~800 tokens     |
@@ -16,7 +16,7 @@ Precision context beats brute-force context.
 
 ---
 
-# jCodeMunch MCP
+# NexusSymdex MCP
 
 ### Structured retrieval for serious AI agents
 
@@ -24,12 +24,12 @@ Precision context beats brute-force context.
 ![MCP](https://img.shields.io/badge/MCP-compatible-purple)
 ![Local-first](https://img.shields.io/badge/local--first-yes-brightgreen)
 ![Polyglot](https://img.shields.io/badge/parsing-tree--sitter-9cf)
-[![PyPI version](https://img.shields.io/pypi/v/jcodemunch-mcp)](https://pypi.org/project/jcodemunch-mcp/)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/jcodemunch-mcp)](https://pypi.org/project/jcodemunch-mcp/)
+[![PyPI version](https://img.shields.io/pypi/v/nexus-symdex)](https://pypi.org/project/nexus-symdex/)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/nexus-symdex)](https://pypi.org/project/nexus-symdex/)
 
 **Stop dumping files into context windows. Start retrieving exactly what the agent needs.**
 
-jCodeMunch indexes a codebase once using tree-sitter AST parsing, then allows MCP-compatible agents (Claude Desktop, VS Code, Google Antigravity, and others) to **discover and retrieve code by symbol** instead of brute-reading files.
+NexusSymdex indexes a codebase once using tree-sitter AST parsing, then allows MCP-compatible agents (Claude Desktop, VS Code, Google Antigravity, and others) to **discover and retrieve code by symbol** instead of brute-reading files.
 
 Every symbol stores:
 - Signature
@@ -51,14 +51,14 @@ Full source is retrieved on demand using O(1) byte-offset seeking.
 | Approach          | Tokens | What the agent had to do              |
 | ----------------- | -----: | ------------------------------------- |
 | Raw file approach | ~7,500 | Open multiple files and scan manually |
-| jCodeMunch MCP    | ~1,449 | `search_symbols()` → `get_symbol()`   |
+| NexusSymdex MCP    | ~1,449 | `search_symbols()` → `get_symbol()`   |
 
 ### Result: **~80% fewer tokens** (~5× more efficient)
 
 Cost scales with tokens.  
 Latency scales with irrelevant context.  
 
-jCodeMunch turns search into navigation.
+NexusSymdex turns search into navigation.
 
 ---
 
@@ -70,7 +70,7 @@ Agents waste money when they:
 - Re-read the same code repeatedly
 - Consume imports, boilerplate, and unrelated helpers
 
-jCodeMunch provides precision context access:
+NexusSymdex provides precision context access:
 
 - Search symbols by name, kind, or language
 - Outline files without loading full contents
@@ -115,23 +115,23 @@ IDs remain stable across re-indexing when path, qualified name, and kind are unc
 ### Install
 
 ```bash
-pip install jcodemunch-mcp
+pip install nexus-symdex
 ```
 
 Verify:
 
 ```bash
-jcodemunch-mcp --help
+nexus-symdex --help
 ```
 
 ---
 
 ## Configure MCP Client
 
-> **PATH note:** MCP clients often run with a limited environment where `jcodemunch-mcp` may not be found even if it works in your terminal. Using [`uvx`](https://github.com/astral-sh/uv) is the recommended approach — it resolves the package on demand without requiring anything to be on your system PATH. If you prefer `pip install`, use the absolute path to the executable instead:
-> - **Linux:** `/home/<username>/.local/bin/jcodemunch-mcp`
-> - **macOS:** `/Users/<username>/.local/bin/jcodemunch-mcp`
-> - **Windows:** `C:\\Users\\<username>\\AppData\\Roaming\\Python\\Python3xx\\Scripts\\jcodemunch-mcp.exe`
+> **PATH note:** MCP clients often run with a limited environment where `nexus-symdex` may not be found even if it works in your terminal. Using [`uvx`](https://github.com/astral-sh/uv) is the recommended approach — it resolves the package on demand without requiring anything to be on your system PATH. If you prefer `pip install`, use the absolute path to the executable instead:
+> - **Linux:** `/home/<username>/.local/bin/nexus-symdex`
+> - **macOS:** `/Users/<username>/.local/bin/nexus-symdex`
+> - **Windows:** `C:\\Users\\<username>\\AppData\\Roaming\\Python\\Python3xx\\Scripts\\nexus-symdex.exe`
 
 ### Claude Desktop / Claude Code
 
@@ -148,9 +148,9 @@ Config file location:
 ```json
 {
   "mcpServers": {
-    "jcodemunch": {
+    "nexus-symdex": {
       "command": "uvx",
-      "args": ["jcodemunch-mcp"]
+      "args": ["nexus-symdex"]
     }
   }
 }
@@ -161,9 +161,9 @@ Config file location:
 ```json
 {
   "mcpServers": {
-    "jcodemunch": {
+    "nexus-symdex": {
       "command": "uvx",
-      "args": ["jcodemunch-mcp"],
+      "args": ["nexus-symdex"],
       "env": {
         "GITHUB_TOKEN": "ghp_...",
         "ANTHROPIC_API_KEY": "sk-ant-..."
@@ -184,9 +184,9 @@ After saving the config, **restart Claude Desktop / Claude Code** for the server
 ```json
 {
   "mcpServers": {
-    "jcodemunch": {
+    "nexus-symdex": {
       "command": "uvx",
-      "args": ["jcodemunch-mcp"]
+      "args": ["nexus-symdex"]
     }
   }
 }
@@ -255,7 +255,7 @@ Every tool response includes a `_meta` envelope with timing, token savings, and 
 **v0.2.9** — Community savings meter: anonymous token savings shared to a live global counter at j.gravelle.us (opt-out via `JCODEMUNCH_SHARE_SAVINGS=0`); updated model pricing (Opus $25/1M, GPT-5 $10/1M)
 **v0.2.8** — Estimated cost avoided added to every `_meta` response (`cost_avoided`, `total_cost_avoided`)
 **v0.2.7** — Security fix: `.claude/` excluded from sdist; structural CI guardrails prevent credential bundling
-**v0.2.5** — Path traversal hardening in `IndexStore`; `jcodemunch-mcp --help` now works
+**v0.2.5** — Path traversal hardening in `IndexStore`; `nexus-symdex --help` now works
 **v0.2.4** — Live token savings counter (`tokens_saved`, `total_tokens_saved` in every `_meta`)
 **v0.2.3** — Google Gemini Flash support (`GOOGLE_API_KEY`); auto-selects between Anthropic and Gemini
 **v0.2.2** — PHP language support
@@ -371,11 +371,11 @@ To disable, set `JCODEMUNCH_SHARE_SAVINGS=0` in your MCP server env.
 
 ## Star History
 
-<a href="https://www.star-history.com/#jgravelle/jcodemunch-mcp&type=date&legend=top-left">
+<a href="https://www.star-history.com/#kapella-hub/NexusSymdex&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=jgravelle/jcodemunch-mcp&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=jgravelle/jcodemunch-mcp&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=jgravelle/jcodemunch-mcp&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=kapella-hub/NexusSymdex&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=kapella-hub/NexusSymdex&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=kapella-hub/NexusSymdex&type=date&legend=top-left" />
  </picture>
 </a>
 

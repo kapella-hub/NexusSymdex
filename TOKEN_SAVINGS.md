@@ -1,9 +1,9 @@
-# Token Savings: jCodeMunch MCP
+# Token Savings: NexusSymdex MCP
 
 ## Why This Exists
 
 AI agents waste tokens when they must read entire files to locate a single function, class, or constant.
-jCodeMunch indexes a repository once and allows agents to retrieve **exact symbols on demand**, eliminating unnecessary context loading.
+NexusSymdex indexes a repository once and allows agents to retrieve **exact symbols on demand**, eliminating unnecessary context loading.
 
 ---
 
@@ -15,7 +15,7 @@ jCodeMunch indexes a repository once and allows agents to retrieve **exact symbo
 | Approach         | Tokens Consumed | Process                               |
 | ---------------- | --------------- | ------------------------------------- |
 | Raw file loading | ~7,500 tokens   | Open multiple files and scan manually |
-| jCodeMunch MCP   | ~1,449 tokens   | `search_symbols` → `get_symbol`       |
+| NexusSymdex MCP   | ~1,449 tokens   | `search_symbols` → `get_symbol`       |
 
 **Savings:** ~80.7%
 
@@ -23,7 +23,7 @@ jCodeMunch indexes a repository once and allows agents to retrieve **exact symbo
 
 ## Typical Savings by Task
 
-| Task                     | Raw Approach    | With jCodeMunch | Savings |
+| Task                     | Raw Approach    | With NexusSymdex | Savings |
 | ------------------------ | --------------- | --------------- | ------- |
 | Explore repo structure   | ~200,000 tokens | ~2k tokens      | ~99%    |
 | Find a specific function | ~40,000 tokens  | ~200 tokens     | ~99.5%  |
@@ -44,7 +44,7 @@ jCodeMunch indexes a repository once and allows agents to retrieve **exact symbo
 
 ## Key Insight
 
-jCodeMunch shifts the workflow from:
+NexusSymdex shifts the workflow from:
 
 **”Read everything to find something”**
 to

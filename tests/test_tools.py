@@ -1,7 +1,7 @@
 """Tests for tools module."""
 
 import pytest
-from jcodemunch_mcp.tools.index_repo import (
+from nexus_symdex.tools.index_repo import (
     parse_github_url,
     discover_source_files,
     should_skip_file,

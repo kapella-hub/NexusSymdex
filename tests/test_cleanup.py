@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from jcodemunch_mcp.tools._utils import resolve_repo
+from nexus_symdex.tools._utils import resolve_repo
 
 
 class TestResolveRepo:
@@ -39,7 +39,7 @@ class TestInputValidation:
     """Tests for input clamping in tool functions."""
 
     def test_search_symbols_clamps_max_results(self):
-        from jcodemunch_mcp.tools.search_symbols import search_symbols
+        from nexus_symdex.tools.search_symbols import search_symbols
 
         # max_results gets clamped, but the function will fail on repo lookup.
         # We just verify it doesn't crash with extreme values.
@@ -50,7 +50,7 @@ class TestInputValidation:
         assert "error" in result
 
     def test_search_text_clamps_max_results(self):
-        from jcodemunch_mcp.tools.search_text import search_text
+        from nexus_symdex.tools.search_text import search_text
 
         result = search_text("owner/repo", "query", max_results=0)
         assert "error" in result
@@ -59,7 +59,7 @@ class TestInputValidation:
         assert "error" in result
 
     def test_get_symbol_clamps_context_lines(self):
-        from jcodemunch_mcp.tools.get_symbol import get_symbol
+        from nexus_symdex.tools.get_symbol import get_symbol
 
         result = get_symbol("owner/repo", "sym_id", context_lines=-5)
         assert "error" in result

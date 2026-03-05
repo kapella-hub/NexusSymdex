@@ -287,3 +287,80 @@ LANGUAGE_REGISTRY = {
     "java": JAVA_SPEC,
     "php": PHP_SPEC,
 }
+
+
+_plugins_loaded = False
+
+
+def _ensure_plugins_loaded():
+    """Lazily load custom language plugins on first access."""
+    global _plugins_loaded
+    if _plugins_loaded:
+        return
+    _plugins_loaded = True
+    load_custom_languages()
+
+
+def load_custom_languages():
+    """Load custom language specs from JSON files in ~/.code-index/languages/.
+
+    Also checks the CODE_INDEX_PATH environment variable for an alternative base path.
+    Invalid specs emit warnings but do not crash.
+    """
+    import json
+    import os
+    import warnings
+    from pathlib import Path
+
+    base_path = os.environ.get("CODE_INDEX_PATH")
+    if base_path:
+        lang_dir = Path(base_path) / "languages"
+    else:
+        lang_dir = Path.home() / ".code-index" / "languages"
+
+    if not lang_dir.is_dir():
+        return
+
+    required_fields = {
+        "name", "extensions", "ts_language", "symbol_node_types",
+        "name_fields", "param_fields", "return_type_fields",
+        "docstring_strategy", "container_node_types",
+        "constant_patterns", "type_patterns",
+    }
+
+    for json_file in lang_dir.glob("*.json"):
+        try:
+            data = json.loads(json_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as e:
+            warnings.warn(f"Failed to read language plugin {json_file.name}: {e}")
+            continue
+
+        missing = required_fields - set(data.keys())
+        if missing:
+            warnings.warn(
+                f"Language plugin {json_file.name} missing fields: {', '.join(sorted(missing))}"
+            )
+            continue
+
+        try:
+            spec = LanguageSpec(
+                ts_language=data["ts_language"],
+                symbol_node_types=data["symbol_node_types"],
+                name_fields=data["name_fields"],
+                param_fields=data["param_fields"],
+                return_type_fields=data["return_type_fields"],
+                docstring_strategy=data["docstring_strategy"],
+                decorator_node_type=data.get("decorator_node_type"),
+                container_node_types=data["container_node_types"],
+                constant_patterns=data["constant_patterns"],
+                type_patterns=data["type_patterns"],
+            )
+        except (TypeError, KeyError) as e:
+            warnings.warn(f"Invalid language spec in {json_file.name}: {e}")
+            continue
+
+        lang_name = data["name"]
+        LANGUAGE_REGISTRY[lang_name] = spec
+
+        for ext in data["extensions"]:
+            LANGUAGE_EXTENSIONS[ext] = lang_name

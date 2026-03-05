@@ -3,21 +3,24 @@
 import pytest
 import json
 
-from jcodemunch_mcp.server import server, list_tools, call_tool
+from nexus_symdex.server import server, list_tools, call_tool
 
 
 @pytest.mark.asyncio
 async def test_server_lists_all_tools():
-    """Test that server lists all 11 tools."""
+    """Test that server lists all 19 tools."""
     tools = await list_tools()
 
-    assert len(tools) == 11
+    assert len(tools) == 19
 
     names = {t.name for t in tools}
     expected = {
         "index_repo", "index_folder", "list_repos", "get_file_tree",
         "get_file_outline", "get_symbol", "get_symbols", "search_symbols",
-        "invalidate_cache", "search_text", "get_repo_outline"
+        "invalidate_cache", "search_text", "get_repo_outline",
+        "search_all_repos", "get_context", "explain_symbol",
+        "watch_folder", "unwatch_folder", "list_watches",
+        "get_callers", "get_dependencies",
     }
     assert names == expected
 

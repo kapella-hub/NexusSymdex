@@ -1,4 +1,4 @@
-"""MCP server for jcodemunch-mcp."""
+"""MCP server for NexusSymdex."""
 
 import argparse
 import asyncio
@@ -19,10 +19,16 @@ from .tools.search_symbols import search_symbols
 from .tools.invalidate_cache import invalidate_cache
 from .tools.search_text import search_text
 from .tools.get_repo_outline import get_repo_outline
+from .tools.search_all_repos import search_all_repos
+from .tools.get_context import get_context
+from .tools.explain_symbol import explain_symbol
+from .tools.watch_folder import watch_folder, unwatch_folder, list_watches
+from .tools.get_callers import get_callers
+from .tools.get_dependencies import get_dependencies
 
 
 # Create server
-server = Server("jcodemunch-mcp")
+server = Server("NexusSymdex")
 
 
 @server.list_tools()
@@ -210,7 +216,7 @@ async def list_tools() -> list[Tool]:
                     "language": {
                         "type": "string",
                         "description": "Optional filter by language",
-                        "enum": ["python", "javascript", "typescript", "go", "rust", "java"]
+                        "enum": ["python", "javascript", "typescript", "go", "rust", "java", "php"]
                     },
                     "max_results": {
                         "type": "integer",
@@ -274,6 +280,153 @@ async def list_tools() -> list[Tool]:
                     }
                 },
                 "required": ["repo"]
+            }
+        ),
+        Tool(
+            name="search_all_repos",
+            description="Search symbols across ALL indexed repositories. Returns combined results sorted by relevance score.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query (matches symbol names, signatures, summaries, docstrings)"
+                    },
+                    "kind": {
+                        "type": "string",
+                        "description": "Optional filter by symbol kind",
+                        "enum": ["function", "class", "method", "constant", "type"]
+                    },
+                    "language": {
+                        "type": "string",
+                        "description": "Optional filter by language",
+                        "enum": ["python", "javascript", "typescript", "go", "rust", "java", "php"]
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return",
+                        "default": 20
+                    }
+                },
+                "required": ["query"]
+            }
+        ),
+        Tool(
+            name="get_context",
+            description="Get the most relevant symbols that fit within a token budget. Returns symbol source code, greedily filling the budget by relevance (if focus query given) or by size (smallest first).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {
+                        "type": "string",
+                        "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "budget_tokens": {
+                        "type": "integer",
+                        "description": "Max tokens to include (default 4000)",
+                        "default": 4000
+                    },
+                    "focus": {
+                        "type": "string",
+                        "description": "Optional search query to focus context on"
+                    },
+                    "kind": {
+                        "type": "string",
+                        "description": "Optional filter by symbol kind",
+                        "enum": ["function", "class", "method", "constant", "type"]
+                    }
+                },
+                "required": ["repo"]
+            }
+        ),
+        Tool(
+            name="explain_symbol",
+            description="Get a structured LLM-powered explanation of a symbol: purpose, inputs, output, side effects, and complexity. Falls back to heuristic explanation if no LLM is available.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {
+                        "type": "string",
+                        "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "symbol_id": {
+                        "type": "string",
+                        "description": "Symbol ID from get_file_outline or search_symbols"
+                    }
+                },
+                "required": ["repo", "symbol_id"]
+            }
+        ),
+        Tool(
+            name="watch_folder",
+            description="Start watching a local folder for file changes and automatically trigger incremental reindex. Requires the folder to be indexed first.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the local folder to watch"
+                    }
+                },
+                "required": ["path"]
+            }
+        ),
+        Tool(
+            name="unwatch_folder",
+            description="Stop watching a folder for changes.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the folder to stop watching"
+                    }
+                },
+                "required": ["path"]
+            }
+        ),
+        Tool(
+            name="list_watches",
+            description="List all actively watched folders.",
+            inputSchema={
+                "type": "object",
+                "properties": {}
+            }
+        ),
+        Tool(
+            name="get_callers",
+            description="Find all call sites that reference a given symbol. Shows where a function/method is called from across the indexed codebase.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {
+                        "type": "string",
+                        "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "symbol_id": {
+                        "type": "string",
+                        "description": "Symbol ID to find callers for"
+                    }
+                },
+                "required": ["repo", "symbol_id"]
+            }
+        ),
+        Tool(
+            name="get_dependencies",
+            description="Find what a symbol calls/imports. Shows outgoing calls and file-level imports for understanding a symbol's dependencies.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {
+                        "type": "string",
+                        "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "symbol_id": {
+                        "type": "string",
+                        "description": "Symbol ID to find dependencies for"
+                    }
+                },
+                "required": ["repo", "symbol_id"]
             }
         ),
     ]
@@ -358,6 +511,54 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 repo=arguments["repo"],
                 storage_path=storage_path
             )
+        elif name == "search_all_repos":
+            result = search_all_repos(
+                query=arguments["query"],
+                kind=arguments.get("kind"),
+                language=arguments.get("language"),
+                max_results=arguments.get("max_results", 20),
+                storage_path=storage_path,
+            )
+        elif name == "get_context":
+            result = get_context(
+                repo=arguments["repo"],
+                budget_tokens=arguments.get("budget_tokens", 4000),
+                focus=arguments.get("focus"),
+                kind=arguments.get("kind"),
+                storage_path=storage_path,
+            )
+        elif name == "explain_symbol":
+            result = await explain_symbol(
+                repo=arguments["repo"],
+                symbol_id=arguments["symbol_id"],
+                storage_path=storage_path,
+            )
+        elif name == "watch_folder":
+            result = watch_folder(
+                path=arguments["path"],
+                storage_path=storage_path,
+            )
+        elif name == "unwatch_folder":
+            result = unwatch_folder(
+                path=arguments["path"],
+                storage_path=storage_path,
+            )
+        elif name == "list_watches":
+            result = list_watches(
+                storage_path=storage_path,
+            )
+        elif name == "get_callers":
+            result = get_callers(
+                repo=arguments["repo"],
+                symbol_id=arguments["symbol_id"],
+                storage_path=storage_path,
+            )
+        elif name == "get_dependencies":
+            result = get_dependencies(
+                repo=arguments["repo"],
+                symbol_id=arguments["symbol_id"],
+                storage_path=storage_path,
+            )
         else:
             result = {"error": f"Unknown tool: {name}"}
         
@@ -382,8 +583,8 @@ async def run_server():
 def main(argv: Optional[list[str]] = None):
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        prog="jcodemunch-mcp",
-        description="Run the jCodeMunch MCP stdio server.",
+        prog="nexus-symdex",
+        description="Run the NexusSymdex MCP stdio server.",
     )
     parser.parse_args(argv)
     asyncio.run(run_server())

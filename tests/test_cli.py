@@ -2,7 +2,7 @@
 
 import pytest
 
-from jcodemunch_mcp.server import main
+from nexus_symdex.server import main
 
 
 def test_main_help_exits_without_starting_server(capsys):
@@ -12,5 +12,5 @@ def test_main_help_exits_without_starting_server(capsys):
 
     assert exc.value.code == 0
     out = capsys.readouterr().out
-    assert "jcodemunch-mcp" in out
-    assert "Run the jCodeMunch MCP stdio server" in out
+    assert "nexus-symdex" in out
+    assert "Run the NexusSymdex MCP stdio server" in out

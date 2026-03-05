@@ -3,7 +3,7 @@
 import pytest
 from pathlib import Path
 
-from jcodemunch_mcp.tools.index_folder import index_folder
+from nexus_symdex.tools.index_folder import index_folder
 
 
 def _write_py(d: Path, name: str, content: str) -> Path:

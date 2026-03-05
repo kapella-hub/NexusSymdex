@@ -3,8 +3,8 @@
 import os
 from unittest.mock import patch
 
-from jcodemunch_mcp.parser.symbols import Symbol
-from jcodemunch_mcp.summarizer.batch_summarize import (
+from nexus_symdex.parser.symbols import Symbol
+from nexus_symdex.summarizer.batch_summarize import (
     BatchSummarizer,
     _create_summarizer,
     summarize_symbols,

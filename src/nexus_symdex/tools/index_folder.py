@@ -6,7 +6,7 @@ from typing import Optional
 
 import pathspec
 
-from ..parser import parse_file, LANGUAGE_EXTENSIONS
+from ..parser import parse_file, extract_references, LANGUAGE_EXTENSIONS
 from ..security import (
     validate_path,
     is_symlink_escape,
@@ -242,7 +242,15 @@ def index_folder(
 
         # Incremental path: detect changes and only re-parse affected files
         if incremental and store.load_index(owner, repo_name) is not None:
-            changed, new, deleted = store.detect_changes(owner, repo_name, current_files)
+            from ..storage.index_store import _get_git_head as _get_head
+            git_head_now = _get_head(folder_path) or ""
+
+            # Try fast git-diff detection first, fall back to hash-based
+            git_result = store.detect_changes_git(owner, repo_name, folder_path, git_head_now)
+            if git_result is not None:
+                changed, new, deleted = git_result
+            else:
+                changed, new, deleted = store.detect_changes(owner, repo_name, current_files)
 
             if not changed and not new and not deleted:
                 return {
@@ -259,6 +267,7 @@ def index_folder(
             languages: dict[str, int] = {}
             raw_files_subset: dict[str, str] = {}
 
+            new_refs: list[dict] = []
             for rel_path in files_to_parse:
                 content = current_files[rel_path]
                 ext = os.path.splitext(rel_path)[1]
@@ -270,6 +279,9 @@ def index_folder(
                     if symbols:
                         new_symbols.extend(symbols)
                         raw_files_subset[rel_path] = content
+                    for ref in extract_references(content, rel_path, language):
+                        ref["file"] = rel_path
+                        new_refs.append(ref)
                 except Exception as e:
                     warnings.append(f"Failed to parse {rel_path}: {e}")
 
@@ -282,14 +294,12 @@ def index_folder(
                 if lang:
                     languages[lang] = languages.get(lang, 0) + 1
 
-            from ..storage.index_store import _get_git_head
-            git_head = _get_git_head(folder_path) or ""
-
             updated = store.incremental_save(
                 owner=owner, name=repo_name,
                 changed_files=changed, new_files=new, deleted_files=deleted,
                 new_symbols=new_symbols, raw_files=raw_files_subset,
-                languages=languages, git_head=git_head,
+                languages=languages, git_head=git_head_now,
+                new_references=new_refs,
             )
 
             result = {
@@ -307,6 +317,7 @@ def index_folder(
 
         # Full index path
         all_symbols = []
+        all_refs: list[dict] = []
         languages = {}
         raw_files = {}
         parsed_files = []
@@ -323,6 +334,9 @@ def index_folder(
                     languages[language] = languages.get(language, 0) + 1
                     raw_files[rel_path] = content
                     parsed_files.append(rel_path)
+                for ref in extract_references(content, rel_path, language):
+                    ref["file"] = rel_path
+                    all_refs.append(ref)
             except Exception as e:
                 warnings.append(f"Failed to parse {rel_path}: {e}")
                 continue
@@ -340,7 +354,8 @@ def index_folder(
             source_files=parsed_files,
             symbols=all_symbols,
             raw_files=raw_files,
-            languages=languages
+            languages=languages,
+            references=all_refs,
         )
 
         result = {

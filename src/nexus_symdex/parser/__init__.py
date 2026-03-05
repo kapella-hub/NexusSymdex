@@ -4,6 +4,7 @@ from .symbols import Symbol, slugify, make_symbol_id, compute_content_hash
 from .languages import LanguageSpec, LANGUAGE_REGISTRY, LANGUAGE_EXTENSIONS, PYTHON_SPEC
 from .extractor import parse_file
 from .hierarchy import SymbolNode, build_symbol_tree, flatten_tree
+from .references import extract_references
 
 __all__ = [
     "Symbol",
@@ -18,4 +19,5 @@ __all__ = [
     "SymbolNode",
     "build_symbol_tree",
     "flatten_tree",
+    "extract_references",
 ]

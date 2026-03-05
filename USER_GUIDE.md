@@ -3,14 +3,14 @@
 ## Installation
 
 ```bash
-pip install git+https://github.com/jgravelle/jcodemunch-mcp.git
+pip install git+https://github.com/kapella-hub/NexusSymdex.git
 ```
 
 Or from source:
 
 ```bash
-git clone https://github.com/jgravelle/jcodemunch-mcp.git
-cd jcodemunch-mcp
+git clone https://github.com/kapella-hub/NexusSymdex.git
+cd nexus-symdex
 pip install -e .
 ```
 
@@ -25,8 +25,8 @@ Add to your `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "jcodemunch": {
-      "command": "jcodemunch-mcp",
+    "nexus-symdex": {
+      "command": "nexus-symdex",
       "env": {
         "GITHUB_TOKEN": "ghp_xxxxxxxx",
         "ANTHROPIC_API_KEY": "sk-ant-xxxxxxxx"
@@ -50,8 +50,8 @@ Add to `.vscode/settings.json`:
 ```json
 {
   "mcp.servers": {
-    "jcodemunch": {
-      "command": "jcodemunch-mcp",
+    "nexus-symdex": {
+      "command": "nexus-symdex",
       "env": {
         "GITHUB_TOKEN": "ghp_xxxxxxxx"
       }
@@ -70,9 +70,9 @@ Claude Sonnet 4.6 | my-project | ░░░░░░░░░░ 0% | 1,280,837 t
 
 Ask Claude Code to set it up:
 
-> "Add jcodemunch token savings to my status line"
+> "Add NexusSymdex token savings to my status line"
 
-Claude Code will add a segment that reads `~/.code-index/_savings.json` and calculates cost avoided at the Claude Opus rate ($25.00 / 1M tokens). The counter updates automatically after every jcodemunch tool call — no restart required.
+Claude Code will add a segment that reads `~/.code-index/_savings.json` and calculates cost avoided at the Claude Opus rate ($25.00 / 1M tokens). The counter updates automatically after every NexusSymdex tool call — no restart required.
 
 To add it manually, read `~/.code-index/_savings.json` and extract `total_tokens_saved`:
 
@@ -95,8 +95,8 @@ if (total > 0) output += ` │ ${total.toLocaleString()} tkns saved · $${cost} 
 ```json
 {
   "mcpServers": {
-    "jcodemunch": {
-      "command": "jcodemunch-mcp",
+    "nexus-symdex": {
+      "command": "nexus-symdex",
       "env": {
         "GITHUB_TOKEN": "ghp_xxxxxxxx",
         "ANTHROPIC_API_KEY": "sk-ant-xxxxxxxx"
@@ -217,7 +217,7 @@ IDs are returned by `get_file_outline`, `search_symbols`, and `search_text`. Pas
 
 ## Community Savings Meter
 
-jCodeMunch contributes an anonymous token savings delta to a live global counter at [j.gravelle.us](https://j.gravelle.us) with each tool call. Only two values are ever sent: the tokens saved (a number) and a random anonymous install ID. No code, paths, repo names, or anything identifying is transmitted. Network failures are silent and never affect tool performance.
+NexusSymdex contributes an anonymous token savings delta to a live global counter at [j.gravelle.us](https://j.gravelle.us) with each tool call. Only two values are ever sent: the tokens saved (a number) and a random anonymous install ID. No code, paths, repo names, or anything identifying is transmitted. Network failures are silent and never affect tool performance.
 
 The anonymous install ID is generated once and stored locally in `~/.code-index/_savings.json`.
 
@@ -226,8 +226,8 @@ To disable, set `JCODEMUNCH_SHARE_SAVINGS=0` in your MCP server env:
 ```json
 {
   "mcpServers": {
-    "jcodemunch": {
-      "command": "jcodemunch-mcp",
+    "nexus-symdex": {
+      "command": "nexus-symdex",
       "env": {
         "JCODEMUNCH_SHARE_SAVINGS": "0"
       }

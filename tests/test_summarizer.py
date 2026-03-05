@@ -2,8 +2,8 @@
 
 import pytest
 from unittest.mock import MagicMock, patch
-from jcodemunch_mcp.parser import Symbol
-from jcodemunch_mcp.summarizer import (
+from nexus_symdex.parser import Symbol
+from nexus_symdex.summarizer import (
     extract_summary_from_docstring,
     signature_fallback,
     summarize_symbols_simple,

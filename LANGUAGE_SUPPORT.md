@@ -28,7 +28,7 @@ All language parsing is powered by **tree-sitter** via the `tree-sitter-language
 
 ## Adding a New Language
 
-1. **Define a `LanguageSpec`** in `src/jcodemunch_mcp/parser/languages.py`:
+1. **Define a `LanguageSpec`** in `src/nexus_symdex/parser/languages.py`:
 
 ```python
 NEW_LANG_SPEC = LanguageSpec(

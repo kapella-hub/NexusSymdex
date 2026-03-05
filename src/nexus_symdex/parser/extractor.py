@@ -4,7 +4,7 @@ from typing import Optional
 from tree_sitter_language_pack import get_language, get_parser
 
 from .symbols import Symbol, make_symbol_id, compute_content_hash
-from .languages import LanguageSpec, LANGUAGE_REGISTRY
+from .languages import LanguageSpec, LANGUAGE_REGISTRY, _ensure_plugins_loaded
 
 
 def parse_file(content: str, filename: str, language: str) -> list[Symbol]:
@@ -18,6 +18,7 @@ def parse_file(content: str, filename: str, language: str) -> list[Symbol]:
     Returns:
         List of Symbol objects
     """
+    _ensure_plugins_loaded()
     if language not in LANGUAGE_REGISTRY:
         return []
     

@@ -1,12 +1,12 @@
-"""Comprehensive hardening tests for jcodemunch-mcp parser, storage, and tools."""
+"""Comprehensive hardening tests for nexus-symdex parser, storage, and tools."""
 
 import json
 from pathlib import Path
 
 import pytest
 
-from jcodemunch_mcp.parser import parse_file, Symbol, make_symbol_id, compute_content_hash
-from jcodemunch_mcp.storage import IndexStore, CodeIndex, INDEX_VERSION
+from nexus_symdex.parser import parse_file, Symbol, make_symbol_id, compute_content_hash
+from nexus_symdex.storage import IndexStore, CodeIndex, INDEX_VERSION
 
 
 # ---------------------------------------------------------------------------
@@ -547,7 +547,7 @@ class TestNewTools:
         return storage
 
     def test_search_text_finds_string(self, tmp_path):
-        from jcodemunch_mcp.tools.search_text import search_text
+        from nexus_symdex.tools.search_text import search_text
 
         storage = self._seed_index(tmp_path)
         result = search_text(
@@ -562,7 +562,7 @@ class TestNewTools:
         assert "app.py" in files_found
 
     def test_search_text_case_insensitive(self, tmp_path):
-        from jcodemunch_mcp.tools.search_text import search_text
+        from nexus_symdex.tools.search_text import search_text
 
         storage = self._seed_index(tmp_path)
         result = search_text(
@@ -573,7 +573,7 @@ class TestNewTools:
         assert result["result_count"] >= 1
 
     def test_search_text_not_found(self, tmp_path):
-        from jcodemunch_mcp.tools.search_text import search_text
+        from nexus_symdex.tools.search_text import search_text
 
         storage = self._seed_index(tmp_path)
         result = search_text(
@@ -584,7 +584,7 @@ class TestNewTools:
         assert result["result_count"] == 0
 
     def test_get_repo_outline_structure(self, tmp_path):
-        from jcodemunch_mcp.tools.get_repo_outline import get_repo_outline
+        from nexus_symdex.tools.get_repo_outline import get_repo_outline
 
         storage = self._seed_index(tmp_path)
         result = get_repo_outline(
@@ -602,7 +602,7 @@ class TestNewTools:
         assert "_meta" in result
 
     def test_get_repo_outline_missing_repo(self, tmp_path):
-        from jcodemunch_mcp.tools.get_repo_outline import get_repo_outline
+        from nexus_symdex.tools.get_repo_outline import get_repo_outline
 
         storage = str(tmp_path / "empty")
         result = get_repo_outline(
@@ -612,7 +612,7 @@ class TestNewTools:
         assert "error" in result
 
     def test_invalidate_cache_deletes_index(self, tmp_path):
-        from jcodemunch_mcp.tools.invalidate_cache import invalidate_cache
+        from nexus_symdex.tools.invalidate_cache import invalidate_cache
 
         storage = self._seed_index(tmp_path)
         result = invalidate_cache(
@@ -628,7 +628,7 @@ class TestNewTools:
         assert loaded is None
 
     def test_invalidate_cache_missing_repo(self, tmp_path):
-        from jcodemunch_mcp.tools.invalidate_cache import invalidate_cache
+        from nexus_symdex.tools.invalidate_cache import invalidate_cache
 
         storage = str(tmp_path / "empty")
         result = invalidate_cache(

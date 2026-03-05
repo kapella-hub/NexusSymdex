@@ -1,7 +1,7 @@
 """Tests for the parser module (Phase 1)."""
 
 import pytest
-from jcodemunch_mcp.parser import parse_file, Symbol
+from nexus_symdex.parser import parse_file, Symbol
 
 
 PYTHON_SOURCE = '''
@@ -51,7 +51,7 @@ def test_parse_python():
 
 def test_symbol_id_format():
     """Test symbol ID generation."""
-    from jcodemunch_mcp.parser import make_symbol_id
+    from nexus_symdex.parser import make_symbol_id
 
     assert make_symbol_id("src/main.py", "MyClass.method", "method") == "src/main.py::MyClass.method#method"
     assert make_symbol_id("test.py", "standalone", "function") == "test.py::standalone#function"

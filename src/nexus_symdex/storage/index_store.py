@@ -5,6 +5,8 @@ import json
 import os
 import shutil
 import subprocess
+import threading
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -36,6 +38,55 @@ def _get_git_head(repo_path: Path) -> Optional[str]:
     return None
 
 
+def score_symbol(sym: dict, query_lower: str, query_words: set) -> int:
+    """Calculate search score for a symbol.
+
+    Shared scoring logic used by CodeIndex.search() and search_symbols tool.
+    """
+    score = 0
+
+    # 1. Exact name match (highest weight)
+    name_lower = sym.get("name", "").lower()
+    if query_lower == name_lower:
+        score += 20
+    elif query_lower in name_lower:
+        score += 10
+
+    # 2. Name word overlap
+    for word in query_words:
+        if word in name_lower:
+            score += 5
+
+    # 3. Signature match
+    sig_lower = sym.get("signature", "").lower()
+    if query_lower in sig_lower:
+        score += 8
+    for word in query_words:
+        if word in sig_lower:
+            score += 2
+
+    # 4. Summary match
+    summary_lower = sym.get("summary", "").lower()
+    if query_lower in summary_lower:
+        score += 5
+    for word in query_words:
+        if word in summary_lower:
+            score += 1
+
+    # 5. Keyword match
+    keywords = set(sym.get("keywords", []))
+    matching_keywords = query_words & keywords
+    score += len(matching_keywords) * 3
+
+    # 6. Docstring match
+    doc_lower = sym.get("docstring", "").lower()
+    for word in query_words:
+        if word in doc_lower:
+            score += 1
+
+    return score
+
+
 @dataclass
 class CodeIndex:
     """Index for a repository's source code."""
@@ -50,13 +101,20 @@ class CodeIndex:
     file_hashes: dict[str, str] = field(default_factory=dict)  # file_path -> sha256
     git_head: str = ""           # HEAD commit hash at index time (for git repos)
     file_summaries: dict[str, str] = field(default_factory=dict)  # file_path -> summary (populated by #9)
+    references: list[dict] = field(default_factory=list)  # Cross-reference data from extract_references
+
+    def __post_init__(self):
+        self._symbol_index: Optional[dict[str, dict]] = None
+
+    def _build_symbol_index(self) -> dict[str, dict]:
+        """Build id -> symbol dict for O(1) lookup."""
+        return {sym["id"]: sym for sym in self.symbols if "id" in sym}
 
     def get_symbol(self, symbol_id: str) -> Optional[dict]:
-        """Find a symbol by ID."""
-        for sym in self.symbols:
-            if sym.get("id") == symbol_id:
-                return sym
-        return None
+        """Find a symbol by ID (O(1) via lazy index)."""
+        if self._symbol_index is None:
+            self._symbol_index = self._build_symbol_index()
+        return self._symbol_index.get(symbol_id)
 
     def search(self, query: str, kind: Optional[str] = None, file_pattern: Optional[str] = None) -> list[dict]:
         """Search symbols with weighted scoring."""
@@ -87,48 +145,37 @@ class CodeIndex:
 
     def _score_symbol(self, sym: dict, query_lower: str, query_words: set) -> int:
         """Calculate search score for a symbol."""
-        score = 0
+        return score_symbol(sym, query_lower, query_words)
 
-        # 1. Exact name match (highest weight)
-        name_lower = sym.get("name", "").lower()
-        if query_lower == name_lower:
-            score += 20
-        elif query_lower in name_lower:
-            score += 10
 
-        # 2. Name word overlap
-        for word in query_words:
-            if word in name_lower:
-                score += 5
+_INDEX_CACHE_MAX = 20
+_index_cache: OrderedDict[str, tuple[float, "CodeIndex"]] = OrderedDict()
+_index_cache_lock = threading.Lock()
 
-        # 3. Signature match
-        sig_lower = sym.get("signature", "").lower()
-        if query_lower in sig_lower:
-            score += 8
-        for word in query_words:
-            if word in sig_lower:
-                score += 2
 
-        # 4. Summary match
-        summary_lower = sym.get("summary", "").lower()
-        if query_lower in summary_lower:
-            score += 5
-        for word in query_words:
-            if word in summary_lower:
-                score += 1
+def _cache_get(path_key: str, current_mtime: float) -> Optional["CodeIndex"]:
+    """Get a cached index if mtime matches."""
+    with _index_cache_lock:
+        entry = _index_cache.get(path_key)
+        if entry and entry[0] == current_mtime:
+            _index_cache.move_to_end(path_key)
+            return entry[1]
+    return None
 
-        # 5. Keyword match
-        keywords = set(sym.get("keywords", []))
-        matching_keywords = query_words & keywords
-        score += len(matching_keywords) * 3
 
-        # 6. Docstring match
-        doc_lower = sym.get("docstring", "").lower()
-        for word in query_words:
-            if word in doc_lower:
-                score += 1
+def _cache_put(path_key: str, mtime: float, index: "CodeIndex") -> None:
+    """Store an index in the cache, evicting oldest if full."""
+    with _index_cache_lock:
+        _index_cache[path_key] = (mtime, index)
+        _index_cache.move_to_end(path_key)
+        while len(_index_cache) > _INDEX_CACHE_MAX:
+            _index_cache.popitem(last=False)
 
-        return score
+
+def _cache_invalidate(path_key: str) -> None:
+    """Remove an entry from the cache."""
+    with _index_cache_lock:
+        _index_cache.pop(path_key, None)
 
 
 class IndexStore:
@@ -198,6 +245,7 @@ class IndexStore:
         languages: dict[str, int],
         file_hashes: Optional[dict[str, str]] = None,
         git_head: str = "",
+        references: Optional[list[dict]] = None,
     ) -> "CodeIndex":
         """Save index and raw files to storage.
 
@@ -210,6 +258,7 @@ class IndexStore:
             languages: Dict mapping language to file count.
             file_hashes: Optional precomputed {file_path: sha256} map.
             git_head: Optional HEAD commit hash at index time.
+            references: Optional list of cross-reference dicts from extract_references.
 
         Returns:
             CodeIndex object.
@@ -230,6 +279,7 @@ class IndexStore:
             index_version=INDEX_VERSION,
             file_hashes=file_hashes,
             git_head=git_head,
+            references=references or [],
         )
 
         # Save index JSON atomically: write to temp then rename
@@ -239,6 +289,7 @@ class IndexStore:
             json.dump(self._index_to_dict(index), f, indent=2)
         # Atomic rename (on POSIX; best-effort on Windows)
         tmp_path.replace(index_path)
+        _cache_invalidate(str(index_path))
 
         # Save raw files
         content_dir = self._content_dir(owner, name)
@@ -255,11 +306,22 @@ class IndexStore:
         return index
 
     def load_index(self, owner: str, name: str) -> Optional[CodeIndex]:
-        """Load index from storage. Rejects incompatible versions."""
+        """Load index from storage. Rejects incompatible versions.
+
+        Uses an in-memory cache keyed by file path and mtime to avoid
+        re-reading and re-parsing the JSON on every tool call.
+        """
         index_path = self._index_path(owner, name)
 
         if not index_path.exists():
             return None
+
+        path_key = str(index_path)
+        current_mtime = index_path.stat().st_mtime
+
+        cached = _cache_get(path_key, current_mtime)
+        if cached is not None:
+            return cached
 
         with open(index_path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -269,7 +331,7 @@ class IndexStore:
         if stored_version > INDEX_VERSION:
             return None  # Future version we can't read
 
-        return CodeIndex(
+        index = CodeIndex(
             repo=data["repo"],
             owner=data["owner"],
             name=data["name"],
@@ -280,7 +342,11 @@ class IndexStore:
             index_version=stored_version,
             file_hashes=data.get("file_hashes", {}),
             git_head=data.get("git_head", ""),
+            references=data.get("references", []),
         )
+
+        _cache_put(path_key, current_mtime, index)
+        return index
 
     def get_symbol_content(self, owner: str, name: str, symbol_id: str) -> Optional[str]:
         """Read symbol source using stored byte offsets.
@@ -355,6 +421,7 @@ class IndexStore:
         raw_files: dict[str, str],
         languages: dict[str, int],
         git_head: str = "",
+        new_references: Optional[list[dict]] = None,
     ) -> Optional[CodeIndex]:
         """Incrementally update an existing index.
 
@@ -402,6 +469,10 @@ class IndexStore:
         for fp, content in raw_files.items():
             file_hashes[fp] = _file_hash(content)
 
+        # Merge references: keep refs from unchanged files, add new refs
+        kept_refs = [r for r in index.references if r.get("file") not in files_to_remove]
+        all_refs = kept_refs + (new_references or [])
+
         # Build updated index
         updated = CodeIndex(
             repo=f"{owner}/{name}",
@@ -414,6 +485,7 @@ class IndexStore:
             index_version=INDEX_VERSION,
             file_hashes=file_hashes,
             git_head=git_head,
+            references=all_refs,
         )
 
         # Save atomically
@@ -422,6 +494,7 @@ class IndexStore:
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(self._index_to_dict(updated), f, indent=2)
         tmp_path.replace(index_path)
+        _cache_invalidate(str(index_path))
 
         # Update raw files
         content_dir = self._content_dir(owner, name)
@@ -445,6 +518,78 @@ class IndexStore:
                 f.write(content)
 
         return updated
+
+    def detect_changes_git(
+        self,
+        owner: str,
+        name: str,
+        repo_path: Path,
+        current_head: str,
+    ) -> tuple[list[str], list[str], list[str]] | None:
+        """Detect changes using git diff when possible.
+
+        Returns (changed, new, deleted) file lists, or None if git diff isn't usable.
+        """
+        from ..parser.languages import LANGUAGE_EXTENSIONS
+
+        index = self.load_index(owner, name)
+        if not index:
+            return None
+
+        stored_head = index.git_head
+        if not stored_head or not current_head:
+            return None
+
+        if stored_head == current_head:
+            return [], [], []
+
+        try:
+            result = subprocess.run(
+                ["git", "diff", "--name-status", f"{stored_head}..{current_head}"],
+                cwd=str(repo_path),
+                capture_output=True, text=True, timeout=15,
+            )
+            if result.returncode != 0:
+                return None
+        except Exception:
+            return None
+
+        supported_exts = set(LANGUAGE_EXTENSIONS.keys())
+        changed = []
+        new = []
+        deleted = []
+
+        for line in result.stdout.strip().splitlines():
+            if not line:
+                continue
+            parts = line.split("\t")
+            if len(parts) < 2:
+                continue
+            status = parts[0]
+            file_path = parts[1]
+
+            ext = os.path.splitext(file_path)[1]
+            if ext not in supported_exts:
+                continue
+
+            if status == "A":
+                new.append(file_path)
+            elif status == "D":
+                deleted.append(file_path)
+            elif status == "M":
+                changed.append(file_path)
+            elif status.startswith("R"):
+                # Rename: old path deleted, new path added
+                old_path = parts[1]
+                new_path = parts[2] if len(parts) > 2 else parts[1]
+                old_ext = os.path.splitext(old_path)[1]
+                new_ext = os.path.splitext(new_path)[1]
+                if old_ext in supported_exts:
+                    deleted.append(old_path)
+                if new_ext in supported_exts:
+                    new.append(new_path)
+
+        return changed, new, deleted
 
     def list_repos(self) -> list[dict]:
         """List all indexed repositories."""
@@ -472,6 +617,7 @@ class IndexStore:
         """Delete an index and its raw files."""
         index_path = self._index_path(owner, name)
         content_dir = self._content_dir(owner, name)
+        _cache_invalidate(str(index_path))
 
         deleted = False
 
@@ -520,4 +666,5 @@ class IndexStore:
             "index_version": index.index_version,
             "file_hashes": index.file_hashes,
             "git_head": index.git_head,
+            "references": index.references,
         }
