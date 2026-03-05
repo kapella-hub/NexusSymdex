@@ -137,16 +137,38 @@ get_callers repo="my-project" symbol_id="db.py::connect#function"
 get_context repo="my-project" focus="authentication" budget_tokens=4000 include_deps=true
 ```
 
-## Token Savings
+## Benchmarks
 
-Tested against Express.js (56 files) and nexus-symdex itself (50 files):
+### Whole-Repo Token Savings
 
-| Approach | Express.js | NexusSymdex |
-|----------|-----------|-------------|
-| Raw files | 36,348 tokens | 98,496 tokens |
-| Signatures only | 23,466 (**35% saved**) | 18,836 (**81% saved**) |
-| Smart context (per query) | ~3,800 (**90% saved**) | ~3,900 (**96% saved**) |
-| Line coverage | 59.2% | 109% (overlap) |
+Tested on nexus-symdex itself (58 Python files, 470KB source, 683 symbols):
+
+| Approach | Tokens | vs Raw File Reading |
+|----------|-------:|--------------------:|
+| Raw file reading (all 58 files) | 117,600 | baseline |
+| All symbols (full source) | 145,416 | -23.7% (includes nested overlap) |
+| Signatures only | 23,261 | **80.2% saved** |
+| Smart context (per query, 4K budget) | ~4,000 | **96.6% saved** |
+
+Coverage: 114.8% line coverage (complete, with nested symbol overlap), 3,492 cross-references (475 imports, 3,017 calls), 58/58 file summaries.
+
+### Task-by-Task: NexusSymdex vs Grep + File Reading
+
+Five real-world code understanding tasks compared head-to-head:
+
+| Task | Base (grep/read) | NexusSymdex | Savings | Notes |
+|------|------------------:|------------:|--------:|-------|
+| Find a specific function | ~500 tokens | ~49 tokens | **90%** | `search_symbols` returns signature + summary directly |
+| Who calls `get_context`? | ~800 tokens | ~180 tokens | **78%** | `get_callers` returns structured caller graph with function attribution |
+| Read `load_index` implementation | ~6,755 tokens | ~280 tokens | **96%** | `get_symbol` extracts exact method vs reading entire 27KB file |
+| Find all summarizer classes | ~16 tokens | ~120 tokens | — | Grep finds names; symdex adds signatures, inheritance, summaries |
+| Impact of changing `extract_references` | ~500 tokens | ~450 tokens | — | Grep finds direct call sites; `get_impact` traces 43 transitively impacted symbols across 2 depth levels — **impossible with grep** |
+
+**Key takeaways:**
+- **Targeted lookups** (read a specific function): **90-96% token savings** by avoiding full file reads
+- **Dependency analysis** (callers, impact): comparable tokens but **vastly richer structured data** — transitive impact analysis is impossible with grep
+- **Signatures-only mode**: ideal for codebase overviews at **80% savings**
+- **Smart context budgeting**: serves the most relevant code for any query at a fixed token cost
 
 ## Architecture
 
