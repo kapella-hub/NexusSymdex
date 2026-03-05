@@ -238,3 +238,29 @@ function helperForTests() {
     assert "test_something" not in dead_names_with
     # helperForTests should now appear since it's unreferenced and include_tests is on
     assert "helperForTests" in dead_names_with
+
+
+def test_commonjs_require_detected_as_import():
+    """Test that require() calls are captured as import references."""
+    source = '''
+var path = require('path');
+var merge = require('utils-merge');
+const debug = require('debug')('express');
+var app = module.exports = {};
+
+function handler(req, res) {
+    res.send('hello');
+}
+'''
+    refs = extract_references(source, "app.js", "javascript")
+    imports = [r for r in refs if r["type"] == "import"]
+    calls = [r for r in refs if r["type"] == "call"]
+
+    import_names = {r["name"] for r in imports}
+    assert "path" in import_names
+    assert "utils-merge" in import_names
+    assert "debug" in import_names
+
+    # require itself should NOT appear as a call
+    call_names = {r["name"] for r in calls}
+    assert "require" not in call_names

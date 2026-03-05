@@ -155,7 +155,17 @@ def _extract_node_references(node, source_bytes: bytes, language: str, refs: lis
         func = node.child_by_field_name("function")
         if func:
             name = _node_text(func, source_bytes)
-            refs.append({"type": "call", "name": name, "line": line, "from_symbol": None})
+            # Detect CommonJS require() as imports in JS/TS
+            if language in ("javascript", "typescript") and name in ("require", "require.resolve"):
+                args = node.child_by_field_name("arguments")
+                if args:
+                    for child in args.children:
+                        if child.type == "string":
+                            mod = _node_text(child, source_bytes).strip("'\"")
+                            refs.append({"type": "import", "name": mod, "line": line, "from_symbol": None})
+                            break
+            else:
+                refs.append({"type": "call", "name": name, "line": line, "from_symbol": None})
 
     elif node_type == "method_invocation" and language == "java":
         name_node = node.child_by_field_name("name")
