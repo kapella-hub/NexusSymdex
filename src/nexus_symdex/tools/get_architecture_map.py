@@ -268,7 +268,6 @@ def _find_spine(
     for root in roots:
         # Iterative DFS: stack holds (file, path_so_far)
         stack: list[tuple[str, list[str]]] = [(root, [root])]
-        visited_from_root: set[str] = set()
 
         while stack:
             current, path = stack.pop()

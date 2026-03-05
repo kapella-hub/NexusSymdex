@@ -191,25 +191,24 @@ class TestPerLanguageExtraction:
         user = _by_name(symbols, "User")
         assert user.kind == "type"
 
-    def test_rust_impl_block_not_extracted(self):
-        """impl_item is in symbol_node_types but has no name_fields entry,
-        so the extractor skips it (returns None from _extract_name).
-        Functions inside impl are still extracted as top-level functions."""
+    def test_rust_impl_block_extracted(self):
+        """impl_item is extracted as a 'class' kind symbol with the
+        implemented type's name."""
         content, fname = _fixture("rust", "sample.rs")
         symbols = parse_file(content, fname, "rust")
         grouped = _kinds(symbols)
-        # impl blocks are skipped because name extraction fails
         impl_syms = grouped.get("class", [])
-        assert len(impl_syms) == 0
+        assert len(impl_syms) >= 1
+        assert impl_syms[0].name == "User"
 
-    def test_rust_fn_in_impl(self):
-        """Without the impl parent being extracted, 'new' appears as a
-        top-level function rather than a method."""
+    def test_rust_fn_in_impl_is_method(self):
+        """Functions inside impl blocks are extracted as methods with
+        the impl block as parent."""
         content, fname = _fixture("rust", "sample.rs")
         symbols = parse_file(content, fname, "rust")
         new_sym = _by_name(symbols, "new")
-        assert new_sym.kind == "function"
-        assert new_sym.parent is None
+        assert new_sym.kind == "method"
+        assert new_sym.parent is not None
 
     def test_rust_free_function(self):
         content, fname = _fixture("rust", "sample.rs")

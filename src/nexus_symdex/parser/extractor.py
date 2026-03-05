@@ -220,6 +220,13 @@ def _extract_name(node, spec: LanguageSpec, source_bytes: bytes) -> Optional[str
                 last_name = source_bytes[child.start_byte:child.end_byte].decode("utf-8")
         return last_name
 
+    # Rust: impl_item has no "name" field; the type being implemented is in the "type" field
+    if node.type == "impl_item" and spec.ts_language == "rust":
+        type_node = node.child_by_field_name("type")
+        if type_node:
+            return source_bytes[type_node.start_byte:type_node.end_byte].decode("utf-8")
+        return None
+
     # Kotlin: uses child node types instead of field names
     if spec.ts_language == "kotlin":
         if node.type == "function_declaration":
@@ -540,10 +547,10 @@ def _extract_constant(
                     if value_type == "call_expression":
                         func_child = value_node.child_by_field_name("function")
                         if func_child and source_bytes[func_child.start_byte:func_child.end_byte].decode("utf-8") == "require":
-                            return None
+                            continue
                     # Skip simple literals for non-constant names
                     if not is_constant and value_type in ("string", "number", "true", "false", "null", "undefined"):
-                        return None
+                        continue
 
                 sig = source_bytes[node.start_byte:node.end_byte].decode("utf-8").strip()
                 const_bytes = source_bytes[node.start_byte:node.end_byte]
@@ -731,12 +738,23 @@ def _disambiguate_overloads(symbols: list[Symbol]) -> list[Symbol]:
     if not duplicated:
         return symbols
 
-    # Track ordinals per duplicate ID
+    # Track ordinals per duplicate ID and build old->new ID mapping
     ordinals: dict[str, int] = {}
+    id_remap: dict[str, str] = {}  # old_id -> new_id (first occurrence only, for parent fixup)
     result = []
     for sym in symbols:
         if sym.id in duplicated:
-            ordinals[sym.id] = ordinals.get(sym.id, 0) + 1
-            sym.id = f"{sym.id}~{ordinals[sym.id]}"
+            old_id = sym.id
+            ordinals[old_id] = ordinals.get(old_id, 0) + 1
+            sym.id = f"{old_id}~{ordinals[old_id]}"
+            # Record the first occurrence's new ID so children can find their parent
+            if old_id not in id_remap:
+                id_remap[old_id] = sym.id
         result.append(sym)
+
+    # Fix up parent references that point to now-renamed IDs
+    for sym in result:
+        if sym.parent and sym.parent in id_remap:
+            sym.parent = id_remap[sym.parent]
+
     return result

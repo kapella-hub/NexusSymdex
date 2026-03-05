@@ -55,15 +55,18 @@ def find_dead_code(
     if not index:
         return {"error": f"Repository not indexed: {owner}/{name}"}
 
-    # Build set of all referenced symbol names (call-type references only)
+    # Build set of all referenced symbol names (call AND import references)
     referenced_names: set[str] = set()
     for ref in index.references:
-        if ref.get("type") == "call":
-            ref_name = ref.get("name", "")
-            referenced_names.add(ref_name)
-            # Also add the bare name for dotted references like "obj.method"
-            if "." in ref_name:
-                referenced_names.add(ref_name.rsplit(".", 1)[-1])
+        ref_type = ref.get("type")
+        if ref_type not in ("call", "import"):
+            continue
+        ref_name = ref.get("name", "")
+        referenced_names.add(ref_name)
+        # Also add the bare name for dotted references like "obj.method"
+        # or "module.ClassName"
+        if "." in ref_name:
+            referenced_names.add(ref_name.rsplit(".", 1)[-1])
 
     dead_symbols = []
     for sym in index.symbols:
@@ -90,6 +93,10 @@ def find_dead_code(
         # Skip symbols with live-indicating decorators
         decorators = sym.get("decorators", [])
         if any(_LIVE_DECORATOR_PATTERNS.search(d) for d in decorators):
+            continue
+
+        # Skip module preambles and route registrations (inherently entry points)
+        if sym_kind in ("module", "route"):
             continue
 
         # Skip exported symbols

@@ -494,6 +494,7 @@ class IndexStore:
         languages: dict[str, int],
         git_head: str = "",
         new_references: Optional[list[dict]] = None,
+        new_file_summaries: Optional[dict[str, str]] = None,
     ) -> Optional[CodeIndex]:
         """Incrementally update an existing index.
 
@@ -545,6 +546,16 @@ class IndexStore:
         kept_refs = [r for r in index.references if r.get("file") not in files_to_remove]
         all_refs = kept_refs + (new_references or [])
 
+        # Preserve file_summaries: keep summaries for unchanged files, drop deleted ones
+        kept_summaries = {
+            fp: summary
+            for fp, summary in index.file_summaries.items()
+            if fp not in files_to_remove
+        }
+        # Merge in new summaries for changed/new files
+        if new_file_summaries:
+            kept_summaries.update(new_file_summaries)
+
         # Build updated index
         updated = CodeIndex(
             repo=f"{owner}/{name}",
@@ -557,6 +568,7 @@ class IndexStore:
             index_version=INDEX_VERSION,
             file_hashes=file_hashes,
             git_head=git_head,
+            file_summaries=kept_summaries,
             references=all_refs,
         )
 
@@ -640,6 +652,18 @@ class IndexStore:
             status = parts[0]
             file_path = parts[1]
 
+            # Renames and copies have two paths -- handle before the extension filter
+            if status.startswith("R") or status.startswith("C"):
+                old_path = parts[1]
+                new_path = parts[2] if len(parts) > 2 else parts[1]
+                old_ext = os.path.splitext(old_path)[1]
+                new_ext = os.path.splitext(new_path)[1]
+                if old_ext in supported_exts:
+                    deleted.append(old_path)
+                if new_ext in supported_exts:
+                    new.append(new_path)
+                continue
+
             ext = os.path.splitext(file_path)[1]
             if ext not in supported_exts:
                 continue
@@ -650,16 +674,6 @@ class IndexStore:
                 deleted.append(file_path)
             elif status == "M":
                 changed.append(file_path)
-            elif status.startswith("R"):
-                # Rename: old path deleted, new path added
-                old_path = parts[1]
-                new_path = parts[2] if len(parts) > 2 else parts[1]
-                old_ext = os.path.splitext(old_path)[1]
-                new_ext = os.path.splitext(new_path)[1]
-                if old_ext in supported_exts:
-                    deleted.append(old_path)
-                if new_ext in supported_exts:
-                    new.append(new_path)
 
         return changed, new, deleted
 

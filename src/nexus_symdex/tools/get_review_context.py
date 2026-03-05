@@ -67,14 +67,21 @@ def get_review_context(
                 if ref_file in changed_files:
                     continue  # Skip callers in the same changed files
                 ref_line = ref.get("line", 0)
-                # Find the symbol that contains this reference
+                # Find the tightest (smallest-span) symbol that contains this reference
+                best_id = None
+                best_span = float("inf")
                 for candidate in index.symbols:
                     if candidate.get("file") != ref_file:
                         continue
-                    if candidate.get("line", 0) <= ref_line <= candidate.get("end_line", 0):
-                        if candidate["id"] not in changed_sym_ids:
-                            caller_ids.add(candidate["id"])
-                        break
+                    c_start = candidate.get("line", 0)
+                    c_end = candidate.get("end_line", 0)
+                    if c_start <= ref_line <= c_end:
+                        span = c_end - c_start
+                        if span < best_span:
+                            best_span = span
+                            best_id = candidate["id"]
+                if best_id and best_id not in changed_sym_ids:
+                    caller_ids.add(best_id)
 
     # 3. Find dependencies of changed symbols
     dep_ids = set()
@@ -105,9 +112,13 @@ def get_review_context(
         f_lower = f.lower()
         if "test" in f_lower or "spec" in f_lower:
             # Check if any changed file's module name appears in the test file name
+            test_basename = f.split("/")[-1].rsplit(".", 1)[0].lower()
             for changed in changed_files:
                 base = changed.split("/")[-1].rsplit(".", 1)[0]
-                if base in f:
+                # Require minimum length to avoid matching single-char names
+                # against everything, and match against the test file's basename
+                # rather than full path to reduce false positives
+                if len(base) >= 2 and base.lower() in test_basename:
                     test_files.add(f)
 
     # 5. Get test file symbols

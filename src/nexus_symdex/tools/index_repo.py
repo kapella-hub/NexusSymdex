@@ -316,12 +316,14 @@ async def index_repo(
                 if lang:
                     languages[lang] = languages.get(lang, 0) + 1
 
+            new_file_sums = generate_file_summaries(new_symbols)
             updated = store.incremental_save(
                 owner=owner, name=repo,
                 changed_files=changed, new_files=new, deleted_files=deleted,
                 new_symbols=new_symbols, raw_files=raw_files_subset,
                 languages=languages,
                 new_references=new_refs,
+                new_file_summaries=new_file_sums,
             )
 
             result = {
