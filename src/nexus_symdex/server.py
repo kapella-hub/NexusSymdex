@@ -25,6 +25,12 @@ from .tools.explain_symbol import explain_symbol
 from .tools.watch_folder import watch_folder, unwatch_folder, list_watches
 from .tools.get_callers import get_callers
 from .tools.get_dependencies import get_dependencies
+from .tools.get_impact import get_impact
+from .tools.get_import_graph import get_import_graph
+from .tools.get_change_summary import get_change_summary
+from .tools.get_architecture_map import get_architecture_map
+
+from .tools.find_dead_code import find_dead_code
 
 
 # Create server
@@ -313,7 +319,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="get_context",
-            description="Get the most relevant symbols that fit within a token budget. Returns symbol source code, greedily filling the budget by relevance (if focus query given) or by size (smallest first).",
+            description="Get the most relevant symbols that fit within a token budget. Returns symbol source code, greedily filling the budget by relevance (if focus query given) or by size (smallest first). With include_deps=true, also includes direct dependencies (callees and imports) of focused symbols.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -334,6 +340,11 @@ async def list_tools() -> list[Tool]:
                         "type": "string",
                         "description": "Optional filter by symbol kind",
                         "enum": ["function", "class", "method", "constant", "type"]
+                    },
+                    "include_deps": {
+                        "type": "boolean",
+                        "description": "When true and focus is set, also include direct dependencies (callees and imports) of the focused symbols within the budget",
+                        "default": False
                     }
                 },
                 "required": ["repo"]
@@ -427,6 +438,104 @@ async def list_tools() -> list[Tool]:
                     }
                 },
                 "required": ["repo", "symbol_id"]
+            }
+        ),
+        Tool(
+            name="get_impact",
+            description="Transitive impact analysis: if you change a symbol, what else might break? BFS through the caller graph up to max_depth levels.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {
+                        "type": "string",
+                        "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "symbol_id": {
+                        "type": "string",
+                        "description": "Symbol ID to analyse impact for"
+                    },
+                    "max_depth": {
+                        "type": "integer",
+                        "description": "Maximum depth of caller traversal (1-10, default 5)",
+                        "default": 5
+                    }
+                },
+                "required": ["repo", "symbol_id"]
+            }
+        ),
+        Tool(
+            name="get_import_graph",
+            description="Build a file-to-file import dependency graph. Shows which files import which, identifies hubs (most-imported files) and fans (files importing the most). Supports adjacency list, DOT, and summary formats.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {
+                        "type": "string",
+                        "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "format": {
+                        "type": "string",
+                        "description": "Output format",
+                        "enum": ["adjacency", "dot", "summary"],
+                        "default": "adjacency"
+                    },
+                    "file_path": {
+                        "type": "string",
+                        "description": "Optional: only show graph for this file and its direct neighbors"
+                    }
+                },
+                "required": ["repo"]
+            }
+        ),
+        Tool(
+            name="get_change_summary",
+            description="Compare current file contents against the stored index to show what symbols changed, were added, or were removed since the last index. Requires a local path for the repo.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {
+                        "type": "string",
+                        "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Optional path to local folder with current files (required for local repos if not auto-detectable)"
+                    }
+                },
+                "required": ["repo"]
+            }
+        ),
+        Tool(
+            name="get_architecture_map",
+            description="Auto-detect architectural layers in a codebase. Classifies every file into a layer (entry, api/routes, core/service, utility, model/data, test, config) using import-graph topology and path heuristics. Also finds the longest import chain (spine).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {
+                        "type": "string",
+                        "description": "Repository identifier (owner/repo or just repo name)"
+                    }
+                },
+                "required": ["repo"]
+            }
+        ),
+        Tool(
+            name="find_dead_code",
+            description="Find symbols that are never referenced (called/imported) from anywhere else in the codebase. Detects potential dead code. Excludes common entry points (main, test functions, decorated endpoints) to reduce false positives.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {
+                        "type": "string",
+                        "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "include_tests": {
+                        "type": "boolean",
+                        "description": "When true, include symbols from test files in results",
+                        "default": False
+                    }
+                },
+                "required": ["repo"]
             }
         ),
     ]
@@ -525,6 +634,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 budget_tokens=arguments.get("budget_tokens", 4000),
                 focus=arguments.get("focus"),
                 kind=arguments.get("kind"),
+                include_deps=arguments.get("include_deps", False),
                 storage_path=storage_path,
             )
         elif name == "explain_symbol":
@@ -557,6 +667,37 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             result = get_dependencies(
                 repo=arguments["repo"],
                 symbol_id=arguments["symbol_id"],
+                storage_path=storage_path,
+            )
+        elif name == "get_impact":
+            result = get_impact(
+                repo=arguments["repo"],
+                symbol_id=arguments["symbol_id"],
+                max_depth=arguments.get("max_depth", 5),
+                storage_path=storage_path,
+            )
+        elif name == "get_import_graph":
+            result = get_import_graph(
+                repo=arguments["repo"],
+                format=arguments.get("format", "adjacency"),
+                file_path=arguments.get("file_path"),
+                storage_path=storage_path,
+            )
+        elif name == "get_change_summary":
+            result = get_change_summary(
+                repo=arguments["repo"],
+                path=arguments.get("path"),
+                storage_path=storage_path,
+            )
+        elif name == "get_architecture_map":
+            result = get_architecture_map(
+                repo=arguments["repo"],
+                storage_path=storage_path,
+            )
+        elif name == "find_dead_code":
+            result = find_dead_code(
+                repo=arguments["repo"],
+                include_tests=arguments.get("include_tests", False),
                 storage_path=storage_path,
             )
         else:

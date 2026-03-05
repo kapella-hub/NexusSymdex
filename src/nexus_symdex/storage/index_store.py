@@ -246,6 +246,7 @@ class IndexStore:
         file_hashes: Optional[dict[str, str]] = None,
         git_head: str = "",
         references: Optional[list[dict]] = None,
+        file_summaries: Optional[dict[str, str]] = None,
     ) -> "CodeIndex":
         """Save index and raw files to storage.
 
@@ -279,6 +280,7 @@ class IndexStore:
             index_version=INDEX_VERSION,
             file_hashes=file_hashes,
             git_head=git_head,
+            file_summaries=file_summaries or {},
             references=references or [],
         )
 
@@ -342,6 +344,7 @@ class IndexStore:
             index_version=stored_version,
             file_hashes=data.get("file_hashes", {}),
             git_head=data.get("git_head", ""),
+            file_summaries=data.get("file_summaries", {}),
             references=data.get("references", []),
         )
 
@@ -666,5 +669,6 @@ class IndexStore:
             "index_version": index.index_version,
             "file_hashes": index.file_hashes,
             "git_head": index.git_head,
+            "file_summaries": index.file_summaries,
             "references": index.references,
         }

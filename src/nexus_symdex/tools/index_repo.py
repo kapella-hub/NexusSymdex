@@ -11,6 +11,7 @@ from ..parser import parse_file, extract_references, LANGUAGE_EXTENSIONS
 from ..security import is_secret_file, is_binary_extension
 from ..storage import IndexStore
 from ..summarizer import summarize_symbols
+from ._utils import generate_file_summaries
 
 
 # File patterns to skip
@@ -367,6 +368,9 @@ async def index_repo(
         # Generate summaries
         all_symbols = summarize_symbols(all_symbols, use_ai=use_ai_summaries)
 
+        # Generate file-level summaries
+        file_summaries = generate_file_summaries(all_symbols)
+
         # Save index
         store.save_index(
             owner=owner,
@@ -376,6 +380,7 @@ async def index_repo(
             raw_files=raw_files,
             languages=languages,
             references=all_refs,
+            file_summaries=file_summaries,
         )
 
         result = {
