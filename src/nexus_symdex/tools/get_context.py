@@ -126,11 +126,27 @@ def get_context(
             candidates = [s for s in candidates if s.get("kind") == kind]
         candidates.sort(key=lambda s: s.get("byte_length", 0))
 
+    # Helper to detect overlapping byte ranges (e.g. methods inside classes)
+    included_ranges: dict[str, list[tuple[int, int]]] = {}  # file -> [(start, end), ...]
+
+    def _is_contained(file_path: str, start: int, end: int) -> bool:
+        """Check if byte range [start, end) is entirely within an already-included symbol."""
+        for existing_start, existing_end in included_ranges.get(file_path, []):
+            if existing_start <= start and end <= existing_end:
+                return True
+        return False
+
     # Helper to add a symbol to the output
     def _try_add(sym, tag=None):
         nonlocal tokens_used, raw_bytes_total
         byte_length = sym.get("byte_length", 0)
+        byte_offset = sym.get("byte_offset", 0)
         estimated_tokens = byte_length // 4 or 1
+        file_path = sym.get("file", "")
+
+        # Skip if this symbol is entirely contained within an already-included symbol
+        if _is_contained(file_path, byte_offset, byte_offset + byte_length):
+            return False
 
         if tokens_used + estimated_tokens > budget_tokens:
             return False
@@ -141,6 +157,9 @@ def get_context(
 
         tokens_used += estimated_tokens
         raw_bytes_total += byte_length
+
+        # Track the byte range
+        included_ranges.setdefault(file_path, []).append((byte_offset, byte_offset + byte_length))
 
         entry = {
             "id": sym["id"],

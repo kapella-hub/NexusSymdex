@@ -484,7 +484,7 @@ function main() {}
 
 
 def test_parse_js_module_variables():
-    """Test that JS module-level variables are captured."""
+    """Test that JS module-level variables are captured (non-trivial ones)."""
     symbols = parse_file(JS_VARIABLES, "config.js", "javascript")
 
     api_url = next((s for s in symbols if s.name == "API_URL"), None)
@@ -495,9 +495,9 @@ def test_parse_js_module_variables():
     assert config is not None
     assert config.kind == "variable"
 
+    # Simple literal with lowercase name is now filtered as trivial
     counter = next((s for s in symbols if s.name == "counter"), None)
-    assert counter is not None
-    assert counter.kind == "variable"
+    assert counter is None
 
 
 # ---- C parsing tests ----
@@ -766,4 +766,85 @@ def test_parse_swift():
     color = next((s for s in symbols if s.name == "Color"), None)
     assert color is not None
     assert color.kind == "type"
+
+
+# ---- Route registration extraction tests ----
+
+JS_ROUTES = '''
+var express = require('express');
+var app = express();
+
+app.get('/users', function(req, res) {
+    res.json([]);
+});
+
+app.post('/login', authenticate);
+
+app.use(cors());
+
+app.listen(3000);
+'''
+
+
+def test_parse_js_route_registrations():
+    """Test that route registrations are captured."""
+    symbols = parse_file(JS_ROUTES, "app.js", "javascript")
+
+    routes = [s for s in symbols if s.kind == "route"]
+    assert len(routes) >= 3  # get, post, use
+
+    get_route = next((s for s in routes if "/users" in s.name), None)
+    assert get_route is not None
+    assert "GET" in get_route.name
+
+    post_route = next((s for s in routes if "/login" in s.name), None)
+    assert post_route is not None
+    assert "POST" in post_route.name
+
+
+def test_trivial_variables_filtered():
+    """Test that trivial variables (require results, simple literals) are filtered."""
+    source = '''
+var path = require('path');
+var express = require('express');
+var count = 0;
+var name = "hello";
+var config = { debug: true, port: 3000 };
+const API_URL = "https://api.example.com";
+'''
+    symbols = parse_file(source, "app.js", "javascript")
+
+    names = {s.name for s in symbols}
+    # require results should be filtered
+    assert "path" not in names
+    assert "express" not in names
+    # Simple literals should be filtered
+    assert "count" not in names
+    assert "name" not in names
+    # Object literals should be kept (they're meaningful config)
+    assert "config" in names
+    # Constants should always be kept
+    assert "API_URL" in names
+
+
+def test_python_trivial_variables_filtered():
+    """Test that trivial Python variables (simple literals) are filtered."""
+    source = '''
+count = 0
+name = "hello"
+flag = True
+config = {"debug": True}
+MAX_SIZE = 100
+'''
+    symbols = parse_file(source, "app.py", "python")
+
+    names = {s.name for s in symbols}
+    # Simple literals with lowercase names should be filtered
+    assert "count" not in names
+    assert "name" not in names
+    assert "flag" not in names
+    # Dict literals should be kept
+    assert "config" in names
+    # Constants should always be kept
+    assert "MAX_SIZE" in names
 

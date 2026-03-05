@@ -12,6 +12,11 @@ _FUNC_EXPR_TYPES = frozenset({
     "generator_function",
 })
 
+# HTTP methods and middleware patterns for route extraction
+_HTTP_METHODS = frozenset({
+    "get", "post", "put", "delete", "patch", "head", "options", "all", "use", "listen",
+})
+
 
 def parse_file(content: str, filename: str, language: str) -> list[Symbol]:
     """Parse source code and extract symbols using tree-sitter.
@@ -93,6 +98,11 @@ def _walk_tree(
         node, spec, source_bytes, filename, language, parent_symbol
     )
     symbols.extend(assigned)
+
+    # Check for route/middleware registrations
+    route = _extract_route_registration(node, spec, source_bytes, filename, language)
+    if route:
+        symbols.append(route)
 
     # Check for constant/variable patterns (module-level assignments)
     if node.type in spec.constant_patterns and parent_symbol is None:
@@ -390,6 +400,81 @@ def _extract_decorators(node, spec: LanguageSpec, source_bytes: bytes) -> list[s
     return decorators
 
 
+def _extract_route_registration(
+    node,
+    spec: LanguageSpec,
+    source_bytes: bytes,
+    filename: str,
+    language: str,
+) -> Optional[Symbol]:
+    """Extract route/middleware registrations like app.get('/users', handler)."""
+    if language not in ("javascript", "typescript"):
+        return None
+
+    # Look for call_expression nodes
+    if node.type != "call_expression":
+        return None
+
+    func = node.child_by_field_name("function")
+    if not func or func.type != "member_expression":
+        return None
+
+    # Get the method name (e.g., "get" from "app.get")
+    prop = func.child_by_field_name("property")
+    if not prop:
+        return None
+    method_name = source_bytes[prop.start_byte:prop.end_byte].decode("utf-8")
+
+    if method_name not in _HTTP_METHODS:
+        return None
+
+    # Get the object (e.g., "app" from "app.get")
+    obj = func.child_by_field_name("object")
+    obj_name = source_bytes[obj.start_byte:obj.end_byte].decode("utf-8") if obj else ""
+
+    # Get first argument (route path if it's a string)
+    args = node.child_by_field_name("arguments")
+    route_path = ""
+    if args:
+        for child in args.children:
+            if child.type in ("string", "string_fragment", "template_string"):
+                raw = source_bytes[child.start_byte:child.end_byte].decode("utf-8")
+                route_path = raw.strip("'\"`")
+                break
+
+    # Build the symbol
+    if route_path:
+        display_name = f"{method_name.upper()} {route_path}"
+        qualified_name = f"{obj_name}.{method_name}({route_path})"
+    else:
+        display_name = f"{obj_name}.{method_name}"
+        qualified_name = f"{obj_name}.{method_name}"
+
+    sig_text = source_bytes[node.start_byte:node.end_byte].decode("utf-8").strip()
+    # Truncate long registrations
+    if len(sig_text) > 120:
+        sig_text = sig_text[:120] + "..."
+
+    symbol_bytes = source_bytes[node.start_byte:node.end_byte]
+    c_hash = compute_content_hash(symbol_bytes)
+
+    return Symbol(
+        id=make_symbol_id(filename, qualified_name, "route"),
+        file=filename,
+        name=display_name,
+        qualified_name=qualified_name,
+        kind="route",
+        language=language,
+        signature=sig_text,
+        docstring="",
+        line=node.start_point[0] + 1,
+        end_line=node.end_point[0] + 1,
+        byte_offset=node.start_byte,
+        byte_length=node.end_byte - node.start_byte,
+        content_hash=c_hash,
+    )
+
+
 def _extract_constant(
     node, spec: LanguageSpec, source_bytes: bytes, filename: str, language: str
 ) -> Optional[Symbol]:
@@ -407,6 +492,12 @@ def _extract_constant(
             # Determine kind based on naming convention
             is_constant = name.isupper() or (len(name) > 1 and name[0].isupper() and "_" in name)
             kind = "constant" if is_constant else "variable"
+
+            # Skip trivial variables (simple literals for non-constant names)
+            right = node.child_by_field_name("right")
+            if right and not is_constant:
+                if right.type in ("string", "integer", "float", "true", "false", "none"):
+                    return None
 
             sig = source_bytes[node.start_byte:node.end_byte].decode("utf-8").strip()
             const_bytes = source_bytes[node.start_byte:node.end_byte]
@@ -441,6 +532,19 @@ def _extract_constant(
                 name = source_bytes[name_node.start_byte:name_node.end_byte].decode("utf-8")
                 is_constant = name.isupper() or (len(name) > 1 and name[0].isupper() and "_" in name)
                 kind = "constant" if is_constant else "variable"
+
+                # Skip trivial variables
+                if value_node:
+                    value_type = value_node.type
+                    # Skip require() results - already captured as imports
+                    if value_type == "call_expression":
+                        func_child = value_node.child_by_field_name("function")
+                        if func_child and source_bytes[func_child.start_byte:func_child.end_byte].decode("utf-8") == "require":
+                            return None
+                    # Skip simple literals for non-constant names
+                    if not is_constant and value_type in ("string", "number", "true", "false", "null", "undefined"):
+                        return None
+
                 sig = source_bytes[node.start_byte:node.end_byte].decode("utf-8").strip()
                 const_bytes = source_bytes[node.start_byte:node.end_byte]
                 c_hash = compute_content_hash(const_bytes)

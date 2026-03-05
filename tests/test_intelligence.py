@@ -264,3 +264,62 @@ function handler(req, res) {
     # require itself should NOT appear as a call
     call_names = {r["name"] for r in calls}
     assert "require" not in call_names
+
+
+def test_get_context_deduplicates_overlapping_symbols(tmp_path):
+    """Test that contained symbols (methods inside classes) don't double-count tokens."""
+    from nexus_symdex.tools.get_context import get_context
+
+    files = {
+        "lib/service.py": '''
+class UserService:
+    def get_user(self, user_id):
+        return {"id": user_id}
+
+    def create_user(self, name):
+        return {"name": name}
+
+    def delete_user(self, user_id):
+        return True
+''',
+    }
+    # Build index with Python
+    all_symbols = []
+    raw_files = {}
+    for path, content in files.items():
+        symbols = parse_file(content, path, "python")
+        all_symbols.extend(symbols)
+        raw_files[path] = content
+
+    store = IndexStore(base_path=str(tmp_path))
+    store.save_index(
+        owner="test", name="dedup-repo",
+        source_files=list(files.keys()),
+        symbols=all_symbols,
+        raw_files=raw_files,
+        languages={"python": 1},
+        references=[],
+    )
+
+    result = get_context(
+        repo="test/dedup-repo",
+        budget_tokens=10000,
+        focus="user",
+        storage_path=str(tmp_path),
+    )
+
+    assert "error" not in result
+    included = result["symbols"]
+    included_names = {s["name"] for s in included}
+
+    # If UserService class is included, its methods should be skipped
+    # (their byte ranges are contained within the class)
+    if "UserService" in included_names:
+        # Methods should NOT also be included since they overlap
+        assert "get_user" not in included_names
+        assert "create_user" not in included_names
+        assert "delete_user" not in included_names
+
+    # Total tokens should be reasonable (no double-counting)
+    total_tokens = result["_meta"]["tokens_used"]
+    assert total_tokens < 200  # Class is ~200 bytes = ~50 tokens

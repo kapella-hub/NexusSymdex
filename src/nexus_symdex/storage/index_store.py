@@ -38,19 +38,76 @@ def _get_git_head(repo_path: Path) -> Optional[str]:
     return None
 
 
+# Semantic keyword mappings -- common programming concept synonyms
+_SEMANTIC_MAP = {
+    "auth": ["login", "logout", "authenticate", "authorize", "credential", "token", "session", "permission", "jwt", "oauth"],
+    "login": ["auth", "authenticate", "signin", "sign_in", "logon"],
+    "user": ["account", "profile", "member", "person"],
+    "config": ["configuration", "settings", "options", "preferences", "env"],
+    "error": ["exception", "fault", "failure", "issue", "bug"],
+    "test": ["spec", "assert", "expect", "verify", "check", "mock"],
+    "database": ["db", "sql", "query", "table", "model", "schema", "migration"],
+    "db": ["database", "sql", "query", "connection", "pool"],
+    "http": ["request", "response", "endpoint", "api", "rest", "fetch", "url"],
+    "request": ["req", "http", "fetch", "call", "invoke"],
+    "response": ["res", "reply", "result", "output"],
+    "route": ["path", "endpoint", "url", "handler", "middleware"],
+    "middleware": ["interceptor", "filter", "handler", "plugin", "hook"],
+    "cache": ["memoize", "store", "buffer", "memo"],
+    "parse": ["deserialize", "decode", "extract", "read", "load"],
+    "serialize": ["encode", "stringify", "dump", "marshal", "format"],
+    "render": ["display", "show", "draw", "paint", "template", "view"],
+    "validate": ["check", "verify", "sanitize", "assert", "ensure"],
+    "create": ["new", "make", "build", "init", "generate", "add"],
+    "delete": ["remove", "destroy", "drop", "clear", "purge"],
+    "update": ["modify", "change", "edit", "patch", "set"],
+    "get": ["fetch", "find", "read", "retrieve", "load", "lookup"],
+    "send": ["emit", "dispatch", "publish", "broadcast", "push", "notify"],
+    "connect": ["link", "join", "attach", "bind", "mount"],
+    "file": ["path", "directory", "folder", "fs", "io"],
+    "log": ["logger", "debug", "trace", "print", "console"],
+    "search": ["find", "query", "lookup", "filter", "match"],
+}
+
+
+def _expand_query_semantically(query_words: set) -> set:
+    """Expand query words with semantic synonyms."""
+    expanded = set(query_words)
+    for word in query_words:
+        related = _SEMANTIC_MAP.get(word, [])
+        expanded.update(related)
+    return expanded
+
+
+def _subsequence_match(query: str, target: str) -> bool:
+    """Check if query is a subsequence of target (fuzzy match).
+
+    e.g., "auth" is a subsequence of "authenticate"
+    """
+    qi = 0
+    for char in target:
+        if qi < len(query) and char == query[qi]:
+            qi += 1
+    return qi == len(query)
+
+
 def score_symbol(sym: dict, query_lower: str, query_words: set) -> int:
     """Calculate search score for a symbol.
 
     Shared scoring logic used by CodeIndex.search() and search_symbols tool.
+    Supports exact, substring, subsequence (fuzzy), and semantic matching.
     """
     score = 0
 
-    # 1. Exact name match (highest weight)
     name_lower = sym.get("name", "").lower()
+
+    # 1. Exact name match (highest weight)
     if query_lower == name_lower:
         score += 20
     elif query_lower in name_lower:
         score += 10
+    elif _subsequence_match(query_lower, name_lower):
+        score += 4  # Fuzzy match bonus
 
     # 2. Name word overlap
     for word in query_words:
@@ -83,6 +140,18 @@ def score_symbol(sym: dict, query_lower: str, query_words: set) -> int:
     for word in query_words:
         if word in doc_lower:
             score += 1
+
+    # 7. Semantic expansion -- check related terms only when no direct matches found
+    if score == 0:
+        expanded = _expand_query_semantically(query_words)
+        semantic_words = expanded - query_words  # Only check new words
+        for word in semantic_words:
+            if word in name_lower:
+                score += 3  # Weaker than direct match
+            elif word in sig_lower:
+                score += 1
+            elif word in doc_lower:
+                score += 1
 
     return score
 

@@ -30,6 +30,7 @@ from .tools.get_import_graph import get_import_graph
 from .tools.get_change_summary import get_change_summary
 from .tools.get_architecture_map import get_architecture_map
 
+from .tools.get_review_context import get_review_context as get_review_context_fn
 from .tools.find_dead_code import find_dead_code
 from .tools._utils import resolve_repo
 from .storage import IndexStore
@@ -559,6 +560,30 @@ async def list_tools() -> list[Tool]:
                 "required": ["repo"]
             }
         ),
+        Tool(
+            name="get_review_context",
+            description="Assemble minimal context for reviewing code changes. Given a list of changed files, finds the changed symbols, their callers (affected code), their dependencies, and related test files. Packs everything into a token budget with priority ordering. Perfect for PR reviews.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {
+                        "type": "string",
+                        "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "changed_files": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of file paths that changed (relative to repo root)"
+                    },
+                    "budget_tokens": {
+                        "type": "integer",
+                        "description": "Max tokens for context (default 8000)",
+                        "default": 8000
+                    },
+                },
+                "required": ["repo", "changed_files"]
+            }
+        ),
     ]
 
 
@@ -741,6 +766,13 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             result = find_dead_code(
                 repo=arguments["repo"],
                 include_tests=arguments.get("include_tests", False),
+                storage_path=storage_path,
+            )
+        elif name == "get_review_context":
+            result = get_review_context_fn(
+                repo=arguments["repo"],
+                changed_files=arguments["changed_files"],
+                budget_tokens=arguments.get("budget_tokens", 8000),
                 storage_path=storage_path,
             )
         else:
