@@ -259,3 +259,109 @@ def test_parse_php():
     assert enum is not None
     assert enum.kind == "type"
 
+
+# ---- Assigned function extraction tests ----
+
+JS_ASSIGNED_FUNCTIONS = '''
+/** Set status code. */
+res.status = function status(code) {
+  this.statusCode = code;
+  return this;
+};
+
+const handler = (req, res) => {
+  res.json({ ok: true });
+};
+
+var render = function render(view, opts) {
+  return view;
+};
+
+exports.createApp = function createApp() {
+  return {};
+};
+
+module.exports.init = function init(config) {
+  return config;
+};
+
+Foo.prototype.bar = function bar(x) {
+  return x;
+};
+
+/** Both names point to the same function. */
+res.contentType =
+res.type = function contentType(type) {
+  return type;
+};
+'''
+
+
+def test_parse_js_property_assignments():
+    """Test that property assignment functions are captured."""
+    symbols = parse_file(JS_ASSIGNED_FUNCTIONS, "test.js", "javascript")
+
+    status = next((s for s in symbols if s.name == "status"), None)
+    assert status is not None
+    assert status.kind == "method"
+    assert status.qualified_name == "res.status"
+    assert "Set status code" in status.docstring
+
+
+def test_parse_js_variable_arrow_function():
+    """Test that arrow functions in variable declarations are captured."""
+    symbols = parse_file(JS_ASSIGNED_FUNCTIONS, "test.js", "javascript")
+
+    handler = next((s for s in symbols if s.name == "handler"), None)
+    assert handler is not None
+    assert handler.kind == "function"
+    assert "handler" in handler.signature
+
+
+def test_parse_js_variable_function_expression():
+    """Test that function expressions in variable declarations are captured."""
+    symbols = parse_file(JS_ASSIGNED_FUNCTIONS, "test.js", "javascript")
+
+    render = next((s for s in symbols if s.name == "render"), None)
+    assert render is not None
+    assert render.kind == "function"
+
+
+def test_parse_js_commonjs_exports():
+    """Test that CommonJS export functions are captured."""
+    symbols = parse_file(JS_ASSIGNED_FUNCTIONS, "test.js", "javascript")
+
+    create = next((s for s in symbols if s.name == "createApp"), None)
+    assert create is not None
+    assert create.kind == "function"
+
+    init = next((s for s in symbols if s.name == "init"), None)
+    assert init is not None
+    assert init.kind == "function"
+
+
+def test_parse_js_prototype_assignment():
+    """Test that prototype method assignments are captured."""
+    symbols = parse_file(JS_ASSIGNED_FUNCTIONS, "test.js", "javascript")
+
+    bar = next((s for s in symbols if s.name == "bar"), None)
+    assert bar is not None
+    assert bar.kind == "method"
+    assert bar.qualified_name == "Foo.bar"
+
+
+def test_parse_js_chained_alias_assignment():
+    """Test chained assignments like res.contentType = res.type = function()."""
+    symbols = parse_file(JS_ASSIGNED_FUNCTIONS, "test.js", "javascript")
+
+    # Primary name (innermost assignment target)
+    typ = next((s for s in symbols if s.name == "type"), None)
+    assert typ is not None
+    assert typ.kind == "method"
+    assert "Both names" in typ.docstring
+
+    # Alias (outer assignment target)
+    ct = next((s for s in symbols if s.name == "contentType"), None)
+    assert ct is not None
+    assert "Alias for" in ct.docstring
+
