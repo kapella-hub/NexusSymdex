@@ -2,11 +2,11 @@
 
 ## Overview
 
-**nexus-symdex** pre-indexes repository source code using tree-sitter AST parsing, extracting a structured catalog of every symbol (function, class, method, constant, type). Each symbol stores its **signature + one-line summary**, with full source retrievable on demand via O(1) byte-offset seeking.
+**NexusSymdex** pre-indexes repository source code using tree-sitter AST parsing, extracting a structured catalog of every symbol (function, class, method, constant, type) and every reference (import, call). Each symbol stores its **signature + one-line summary**, with full source retrievable on demand via O(1) byte-offset seeking.
 
 ### Token Savings
 
-| Scenario                        | Raw dump        | codemunch     | Savings   |
+| Scenario                        | Raw dump        | NexusSymdex   | Savings   |
 | ------------------------------- | --------------- | ------------- | --------- |
 | Explore 500-file repo structure | ~200,000 tokens | ~2,000 tokens | **99%**   |
 | Find a specific function        | ~40,000 tokens  | ~200 tokens   | **99.5%** |
@@ -15,7 +15,7 @@
 
 ---
 
-## MCP Tools (11)
+## MCP Tools (18)
 
 ### Indexing Tools
 
@@ -24,11 +24,12 @@
 ```json
 {
   "url": "owner/repo",
-  "use_ai_summaries": true
+  "use_ai_summaries": true,
+  "incremental": false
 }
 ```
 
-Fetches source via `git/trees?recursive=1` (single API call), filters through the security pipeline, parses with tree-sitter, summarizes, and saves the index plus raw files.
+Fetches source via `git/trees?recursive=1` (single API call), filters through the security pipeline, parses with tree-sitter, extracts references, summarizes, and saves the index plus raw files.
 
 #### `index_folder` — Index a local folder
 
@@ -36,7 +37,8 @@ Fetches source via `git/trees?recursive=1` (single API call), filters through th
 {
   "path": "/path/to/project",
   "extra_ignore_patterns": ["*.generated.*"],
-  "follow_symlinks": false
+  "follow_symlinks": false,
+  "incremental": false
 }
 ```
 
@@ -65,11 +67,12 @@ No input required. Returns all indexed repositories with symbol counts, file cou
 ```json
 {
   "repo": "owner/repo",
-  "path_prefix": "src/"
+  "path_prefix": "src/",
+  "include_summaries": false
 }
 ```
 
-Returns a nested directory tree with per-file language and symbol count annotations.
+Returns a nested directory tree with per-file language and symbol count annotations. Optional `include_summaries` adds per-file summaries.
 
 #### `get_file_outline` — Get symbols in a file
 
@@ -120,6 +123,30 @@ Retrieves source via byte-offset seeking (O(1)). Optional `verify` re-hashes the
 
 Returns a list of symbols plus an error list for any IDs not found.
 
+#### `get_context` — Token-budget-aware context retrieval
+
+```json
+{
+  "repo": "owner/repo",
+  "budget_tokens": 4000,
+  "focus": "authentication",
+  "kind": "function"
+}
+```
+
+Greedily fills a token budget with the most relevant symbols (source included). When `focus` is provided, symbols are ranked by search relevance. Without `focus`, smallest symbols are packed first to maximize information density.
+
+#### `explain_symbol` — LLM-powered symbol explanation
+
+```json
+{
+  "repo": "owner/repo",
+  "symbol_id": "src/auth.py::login#function"
+}
+```
+
+Sends symbol source to an LLM and returns a structured explanation: purpose, inputs, output, side effects, and complexity rating. Tries providers in order: Anthropic > Gemini > OpenAI/local. Falls back to heuristic explanation if no LLM is available.
+
 ---
 
 ### Search Tools
@@ -152,6 +179,71 @@ Weighted scoring search across name, signature, summary, keywords, and docstring
 
 Case-insensitive substring search across indexed file contents. Returns matching lines with file, line number, and surrounding context. Use when symbol search misses (string literals, comments, config values).
 
+#### `search_all_repos` — Search across all indexed repositories
+
+```json
+{
+  "query": "database",
+  "kind": "class",
+  "language": "python",
+  "max_results": 20
+}
+```
+
+Searches symbols across every indexed repository. Returns combined results sorted by relevance score, each tagged with its source repository.
+
+---
+
+### Call Graph Tools
+
+#### `get_callers` — Find all call sites for a symbol
+
+```json
+{
+  "repo": "owner/repo",
+  "symbol_id": "src/auth.py::login#function"
+}
+```
+
+Searches stored references for calls matching the symbol's name. Returns each call site with file, line, call expression, and the containing symbol ID. Self-references within the target symbol are excluded.
+
+#### `get_dependencies` — Find what a symbol calls and imports
+
+```json
+{
+  "repo": "owner/repo",
+  "symbol_id": "src/auth.py::login#function"
+}
+```
+
+Returns file-level imports and outgoing calls within the symbol's line range. Helps understand what a symbol depends on before making changes.
+
+---
+
+### Watch Tools
+
+#### `watch_folder` — Watch for changes and auto-reindex
+
+```json
+{
+  "path": "/path/to/project"
+}
+```
+
+Starts a background polling thread (5-second interval) that detects file changes and triggers incremental reindex. The folder must be indexed first via `index_folder`.
+
+#### `unwatch_folder` — Stop watching a folder
+
+```json
+{
+  "path": "/path/to/project"
+}
+```
+
+#### `list_watches` — List actively watched folders
+
+No input required. Returns all currently watched folder paths.
+
 ---
 
 ## Data Models
@@ -173,11 +265,23 @@ class Symbol:
     summary: str = ""
     decorators: list[str]    # Decorators/attributes
     keywords: list[str]      # Search keywords
-    parent: str | None       # Parent symbol ID (methods → class)
+    parent: str | None       # Parent symbol ID (methods -> class)
     line: int = 0            # Start line (1-indexed)
     end_line: int = 0        # End line (1-indexed)
     byte_offset: int = 0     # Start byte in raw file
     byte_length: int = 0     # Byte length of source
+```
+
+### Reference
+
+```python
+{
+    "type": "import" | "call",
+    "name": str,            # Module path or function name
+    "line": int,            # Source line (1-indexed)
+    "file": str,            # File containing this reference
+    "from_symbol": str | None  # Containing symbol ID
+}
 ```
 
 ### CodeIndex
@@ -191,9 +295,10 @@ class CodeIndex:
     indexed_at: str                  # ISO timestamp
     index_version: int               # Schema version (current: 2)
     source_files: list[str]
-    languages: dict[str, int]        # language → file count
+    languages: dict[str, int]        # language -> file count
     symbols: list[dict]              # Serialized symbols (no source)
-    file_hashes: dict[str, str]      # file_path → SHA-256 (for incremental)
+    references: list[dict]           # Import and call references
+    file_hashes: dict[str, str]      # file_path -> SHA-256 (for incremental)
     git_head: str                    # HEAD commit hash (for git repos, empty if unavailable)
 ```
 
@@ -218,7 +323,7 @@ Recursive directory walk with the full security pipeline.
 4. **Secret detection** — `.env`, `*.pem`, `*.key`, `*.p12`, credentials files excluded
 5. **Binary detection** — extension-based + null-byte content sniffing
 6. **Size limit** — 500 KB per file (configurable)
-7. **File count limit** — 500 files max, prioritized: `src/` → `lib/` → `pkg/` → `cmd/` → `internal/` → remainder
+7. **File count limit** — 500 files max, prioritized: `src/` > `lib/` > `pkg/` > `cmd/` > `internal/` > remainder
 
 ---
 
@@ -235,15 +340,18 @@ All tools return a `_meta` object with timing, context, and token savings:
     "truncated": false,
     "content_verified": true,
     "tokens_saved": 2450,
-    "total_tokens_saved": 184320
+    "total_tokens_saved": 184320,
+    "cost_avoided": { "claude_opus": 0.0612, "gpt5_latest": 0.0245 },
+    "total_cost_avoided": { "claude_opus": 4.61, "gpt5_latest": 1.84 }
   }
 }
 ```
 
 - **`tokens_saved`**: Tokens saved by this specific call (raw file bytes vs response bytes, divided by 4)
 - **`total_tokens_saved`**: Cumulative tokens saved across all tool calls, persisted to `~/.code-index/_savings.json`
+- **`cost_avoided`** / **`total_cost_avoided`**: Estimated dollar savings at current model pricing
 
-Present on: `get_file_outline`, `get_symbol`, `get_symbols`, `get_repo_outline`, `search_symbols`.
+Present on: `get_file_outline`, `get_file_tree`, `get_symbol`, `get_symbols`, `get_repo_outline`, `search_symbols`, `search_text`, `search_all_repos`, `get_context`.
 
 ---
 
@@ -269,14 +377,20 @@ All errors return:
 | Repository not indexed            | Error suggesting indexing first                       |
 | AI summarization fails            | Falls back to docstring or signature                  |
 | Index version mismatch            | Old index ignored; full reindex required              |
+| LLM explanation fails             | Falls back to heuristic explanation                   |
 
 ---
 
 ## Environment Variables
 
-| Variable            | Purpose                                                  | Required |
-| ------------------- | -------------------------------------------------------- | -------- |
-| `GITHUB_TOKEN`      | GitHub API authentication (higher limits, private repos) | No       |
-| `ANTHROPIC_API_KEY` | AI summarization via Claude Haiku (takes priority if both keys set) | No       |
-| `GOOGLE_API_KEY`    | AI summarization via Gemini Flash (used if `ANTHROPIC_API_KEY` not set) | No       |
-| `CODE_INDEX_PATH`   | Custom storage path (default: `~/.code-index/`)          | No       |
+| Variable                    | Purpose                                                  | Required |
+| --------------------------- | -------------------------------------------------------- | -------- |
+| `GITHUB_TOKEN`              | GitHub API authentication (higher limits, private repos) | No       |
+| `ANTHROPIC_API_KEY`         | AI summarization + explanation via Claude Haiku (takes priority) | No       |
+| `GOOGLE_API_KEY`            | AI summarization + explanation via Gemini Flash           | No       |
+| `OPENAI_API_BASE`           | Base URL for local LLMs                                   | No       |
+| `OPENAI_API_KEY`            | API key for local LLMs (default: `local-llm`)            | No       |
+| `OPENAI_MODEL`              | Model name for local LLMs (default: `qwen3-coder`)       | No       |
+| `OPENAI_TIMEOUT`            | Timeout in seconds for local requests (default: `60.0`)  | No       |
+| `CODE_INDEX_PATH`           | Custom storage path (default: `~/.code-index/`)          | No       |
+| `JCODEMUNCH_SHARE_SAVINGS`  | Set to `0` to disable community savings reporting        | No       |

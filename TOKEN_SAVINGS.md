@@ -1,4 +1,4 @@
-# Token Savings: NexusSymdex MCP
+# Token Savings
 
 ## Why This Exists
 
@@ -15,7 +15,7 @@ NexusSymdex indexes a repository once and allows agents to retrieve **exact symb
 | Approach         | Tokens Consumed | Process                               |
 | ---------------- | --------------- | ------------------------------------- |
 | Raw file loading | ~7,500 tokens   | Open multiple files and scan manually |
-| NexusSymdex MCP   | ~1,449 tokens   | `search_symbols` → `get_symbol`       |
+| NexusSymdex      | ~1,449 tokens   | `search_symbols` -> `get_symbol`      |
 
 **Savings:** ~80.7%
 
@@ -24,11 +24,11 @@ NexusSymdex indexes a repository once and allows agents to retrieve **exact symb
 ## Typical Savings by Task
 
 | Task                     | Raw Approach    | With NexusSymdex | Savings |
-| ------------------------ | --------------- | --------------- | ------- |
-| Explore repo structure   | ~200,000 tokens | ~2k tokens      | ~99%    |
-| Find a specific function | ~40,000 tokens  | ~200 tokens     | ~99.5%  |
-| Read one implementation  | ~40,000 tokens  | ~500 tokens     | ~98.7%  |
-| Understand module API    | ~15,000 tokens  | ~800 tokens     | ~94.7%  |
+| ------------------------ | --------------- | ---------------- | ------- |
+| Explore repo structure   | ~200,000 tokens | ~2k tokens       | ~99%    |
+| Find a specific function | ~40,000 tokens  | ~200 tokens      | ~99.5%  |
+| Read one implementation  | ~40,000 tokens  | ~500 tokens      | ~98.7%  |
+| Understand module API    | ~15,000 tokens  | ~800 tokens      | ~94.7%  |
 
 ---
 
@@ -46,9 +46,9 @@ NexusSymdex indexes a repository once and allows agents to retrieve **exact symb
 
 NexusSymdex shifts the workflow from:
 
-**”Read everything to find something”**
+**"Read everything to find something"**
 to
-**”Find something, then read only that.”**
+**"Find something, then read only that."**
 
 ---
 
@@ -57,14 +57,17 @@ to
 Every tool response includes real-time savings data in the `_meta` field:
 
 ```json
-“_meta”: {
-  “tokens_saved”: 2450,
-  “total_tokens_saved”: 184320
+"_meta": {
+  "tokens_saved": 2450,
+  "total_tokens_saved": 184320,
+  "cost_avoided": { "claude_opus": 0.0612, "gpt5_latest": 0.0245 },
+  "total_cost_avoided": { "claude_opus": 4.61, "gpt5_latest": 1.84 }
 }
 ```
 
-- **`tokens_saved`**: Tokens saved by the current call (raw file bytes vs response bytes ÷ 4)
+- **`tokens_saved`**: Tokens saved by the current call (raw file bytes vs response bytes / 4)
 - **`total_tokens_saved`**: Cumulative total across all calls, persisted to `~/.code-index/_savings.json`
+- **`cost_avoided`** / **`total_cost_avoided`**: Estimated dollar savings at current model pricing
 
 No extra API calls or file reads — computed using fast `os.stat` only.
 

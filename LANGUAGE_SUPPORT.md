@@ -14,6 +14,22 @@
 
 ---
 
+## Reference Extraction
+
+In addition to symbols, NexusSymdex extracts **import and call references** from source code. This enables `get_callers` and `get_dependencies` tools.
+
+| Language   | Import Nodes                                    | Call Nodes                                |
+| ---------- | ----------------------------------------------- | ----------------------------------------- |
+| Python     | `import_statement`, `import_from_statement`     | `call`                                    |
+| JavaScript | `import_statement`                              | `call_expression`                         |
+| TypeScript | `import_statement`                              | `call_expression`                         |
+| Go         | `import_spec`                                   | `call_expression`                         |
+| Rust       | `use_declaration`                               | `call_expression`                         |
+| Java       | `import_declaration`                            | `method_invocation`                       |
+| PHP        | `namespace_use_declaration`                     | `function_call_expression`, `member_call_expression` |
+
+---
+
 ## Parser Engine
 
 All language parsing is powered by **tree-sitter** via the `tree-sitter-language-pack` Python package, providing:
@@ -22,7 +38,7 @@ All language parsing is powered by **tree-sitter** via the `tree-sitter-language
 * Uniform AST representation across languages
 * Pre-compiled grammars for supported languages
 
-**Dependency:** `tree-sitter-language-pack>=0.7.0` (pinned in `pyproject.toml`)
+**Dependency:** `tree-sitter-language-pack>=0.7.0,<1.0.0` (pinned in `pyproject.toml`)
 
 ---
 
@@ -65,14 +81,18 @@ LANGUAGE_REGISTRY["new_language"] = NEW_LANG_SPEC
 LANGUAGE_EXTENSIONS[".ext"] = "new_language"
 ```
 
-4. **Verify parser availability**:
+4. **Add reference extraction** in `src/nexus_symdex/parser/references.py`:
+
+Add import and call node handling for the new language in `_extract_node_references()`.
+
+5. **Verify parser availability**:
 
 ```python
 from tree_sitter_language_pack import get_parser
 get_parser("new_language")  # Must not raise
 ```
 
-5. **Add parser tests**:
+6. **Add parser tests**:
 
 ```python
 def test_parse_new_language():

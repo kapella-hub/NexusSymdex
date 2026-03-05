@@ -1,6 +1,6 @@
 # Security Controls
 
-nexus-symdex indexes source code from local folders and GitHub repositories. This document describes the security controls that protect against common risks when handling arbitrary codebases.
+NexusSymdex indexes source code from local folders and GitHub repositories. This document describes the security controls that protect against common risks when handling arbitrary codebases.
 
 ---
 
@@ -86,6 +86,13 @@ Binary files are excluded using a two-stage check:
 
 ---
 
+## Build Safety
+
+* The `.claude/` directory is excluded from sdist builds to prevent accidental bundling of local settings or credentials.
+* CI guardrails verify that sensitive paths are not included in published packages.
+
+---
+
 ## Summary of Controls
 
 | Control                   | Location                       | Default                     |
@@ -98,3 +105,4 @@ Binary files are excluded using a two-stage check:
 | File count limit          | File discovery pipeline        | 500 files                   |
 | `.gitignore` respect      | Indexing pipeline              | Enabled                     |
 | UTF-8 safe decode         | All file reads                 | `errors="replace"`          |
+| Build exclusions          | `pyproject.toml` sdist config  | `.claude/` excluded         |

@@ -1,7 +1,7 @@
 ## Cut code-reading token costs by up to **99%**
 
 Most AI agents explore repositories the expensive way:
-open entire files → skim thousands of irrelevant lines → repeat.
+open entire files, skim thousands of irrelevant lines, repeat.
 
 **NexusSymdex indexes a codebase once and lets agents retrieve only the exact symbols they need** — functions, classes, methods, constants — with byte-level precision.
 
@@ -11,14 +11,14 @@ open entire files → skim thousands of irrelevant lines → repeat.
 | Understand module API  | ~15,000 tokens       | ~800 tokens     |
 | Explore repo structure | ~200,000 tokens      | ~2k tokens      |
 
-Index once. Query cheaply forever.  
+Index once. Query cheaply forever.
 Precision context beats brute-force context.
 
 ---
 
-# NexusSymdex MCP
+# NexusSymdex
 
-### Structured retrieval for serious AI agents
+### Structured code retrieval for AI agents
 
 ![License](https://img.shields.io/badge/license-dual--use-blue)
 ![MCP](https://img.shields.io/badge/MCP-compatible-purple)
@@ -29,36 +29,16 @@ Precision context beats brute-force context.
 
 **Stop dumping files into context windows. Start retrieving exactly what the agent needs.**
 
-NexusSymdex indexes a codebase once using tree-sitter AST parsing, then allows MCP-compatible agents (Claude Desktop, VS Code, Google Antigravity, and others) to **discover and retrieve code by symbol** instead of brute-reading files.
+NexusSymdex indexes a codebase once using tree-sitter AST parsing, then allows MCP-compatible agents (Claude Desktop, VS Code, Claude Code, Google Antigravity, and others) to **discover, search, and retrieve code by symbol** instead of brute-reading files.
 
 Every symbol stores:
-- Signature
-- Kind
-- Qualified name
+- Signature and kind
+- Qualified name and file location
 - One-line summary
 - Byte offsets into the original file
+- Content hash for drift detection
 
 Full source is retrieved on demand using O(1) byte-offset seeking.
-
----
-
-## Proof: Token savings in the wild
-
-**Repo:** `geekcomputers/Python`  
-**Size:** 338 files, 1,422 symbols indexed  
-**Task:** Locate calculator / math implementations  
-
-| Approach          | Tokens | What the agent had to do              |
-| ----------------- | -----: | ------------------------------------- |
-| Raw file approach | ~7,500 | Open multiple files and scan manually |
-| NexusSymdex MCP    | ~1,449 | `search_symbols()` → `get_symbol()`   |
-
-### Result: **~80% fewer tokens** (~5× more efficient)
-
-Cost scales with tokens.  
-Latency scales with irrelevant context.  
-
-NexusSymdex turns search into navigation.
 
 ---
 
@@ -75,20 +55,22 @@ NexusSymdex provides precision context access:
 - Search symbols by name, kind, or language
 - Outline files without loading full contents
 - Retrieve exact symbol implementations only
-- Fall back to full-text search when necessary
+- Trace call graphs with `get_callers` and `get_dependencies`
+- Auto-fill token budgets with `get_context`
+- Search across all indexed repos simultaneously
+- Watch folders for automatic re-indexing on file changes
 
-Agents do not need larger context windows.  
-They need structured retrieval.
+Agents do not need larger context windows. They need structured retrieval.
 
 ---
 
 ## How it works
 
-1. **Discovery** — GitHub API or local directory walk  
-2. **Security filtering** — traversal protection, secret exclusion, binary detection  
-3. **Parsing** — tree-sitter AST extraction  
-4. **Storage** — JSON index + raw files stored locally (`~/.code-index/`)  
-5. **Retrieval** — O(1) byte-offset seeking via stable symbol IDs  
+1. **Discovery** — GitHub API or local directory walk
+2. **Security filtering** — traversal protection, secret exclusion, binary detection
+3. **Parsing** — tree-sitter AST extraction + reference analysis
+4. **Storage** — JSON index + raw files stored locally (`~/.code-index/`)
+5. **Retrieval** — O(1) byte-offset seeking via stable symbol IDs
 
 ### Stable Symbol IDs
 
@@ -177,7 +159,7 @@ After saving the config, **restart Claude Desktop / Claude Code** for the server
 
 ### Google Antigravity
 
-1. Open the Agent pane → click the `⋯` menu → **MCP Servers** → **Manage MCP Servers**
+1. Open the Agent pane, click the `...` menu, then **MCP Servers** and **Manage MCP Servers**
 2. Click **View raw config** to open `mcp_config.json`
 3. Add the entry below, save, then restart the MCP server from the Manage MCPs pane
 
@@ -213,25 +195,39 @@ get_file_outline: { "repo": "owner/repo", "file_path": "src/main.py" }
 search_symbols:   { "repo": "owner/repo", "query": "authenticate" }
 get_symbol:       { "repo": "owner/repo", "symbol_id": "src/main.py::MyClass.login#method" }
 search_text:      { "repo": "owner/repo", "query": "TODO" }
+search_all_repos: { "query": "database" }
+get_context:      { "repo": "owner/repo", "budget_tokens": 4000, "focus": "auth" }
+get_callers:      { "repo": "owner/repo", "symbol_id": "src/auth.py::login#function" }
+get_dependencies: { "repo": "owner/repo", "symbol_id": "src/auth.py::login#function" }
+explain_symbol:   { "repo": "owner/repo", "symbol_id": "src/auth.py::login#function" }
+watch_folder:     { "path": "/path/to/project" }
 ```
 
 ---
 
-## Tools (11)
+## Tools (18)
 
-| Tool               | Purpose                     |
-| ------------------ | --------------------------- |
-| `index_repo`       | Index a GitHub repository   |
-| `index_folder`     | Index a local folder        |
-| `list_repos`       | List indexed repositories   |
-| `get_file_tree`    | Repository file structure   |
-| `get_file_outline` | Symbol hierarchy for a file |
-| `get_symbol`       | Retrieve full symbol source |
-| `get_symbols`      | Batch retrieve symbols      |
-| `search_symbols`   | Search symbols with filters |
-| `search_text`      | Full-text search            |
-| `get_repo_outline` | High-level repo overview    |
-| `invalidate_cache` | Remove cached index         |
+| Tool               | Purpose                                    |
+| ------------------ | ------------------------------------------ |
+| `index_repo`       | Index a GitHub repository                  |
+| `index_folder`     | Index a local folder                       |
+| `list_repos`       | List indexed repositories                  |
+| `get_file_tree`    | Repository file structure                  |
+| `get_file_outline` | Symbol hierarchy for a file                |
+| `get_symbol`       | Retrieve full symbol source                |
+| `get_symbols`      | Batch retrieve symbols                     |
+| `search_symbols`   | Search symbols with filters                |
+| `search_text`      | Full-text search                           |
+| `get_repo_outline` | High-level repo overview                   |
+| `invalidate_cache` | Remove cached index                        |
+| `search_all_repos` | Search symbols across all indexed repos    |
+| `get_context`      | Token-budget-aware context retrieval       |
+| `explain_symbol`   | LLM-powered structured symbol explanation  |
+| `get_callers`      | Find all call sites for a symbol           |
+| `get_dependencies` | Find what a symbol calls and imports       |
+| `watch_folder`     | Auto-reindex on file changes               |
+| `unwatch_folder`   | Stop watching a folder                     |
+| `list_watches`     | List actively watched folders              |
 
 Every tool response includes a `_meta` envelope with timing, token savings, and cost avoided:
 
@@ -249,19 +245,6 @@ Every tool response includes a `_meta` envelope with timing, token savings, and 
 
 ---
 
-## Recent Updates
-
-**v0.2.10** — Pin `mcp<1.10.0` to prevent Windows `win32api` DLL crash on startup
-**v0.2.9** — Community savings meter: anonymous token savings shared to a live global counter at j.gravelle.us (opt-out via `JCODEMUNCH_SHARE_SAVINGS=0`); updated model pricing (Opus $25/1M, GPT-5 $10/1M)
-**v0.2.8** — Estimated cost avoided added to every `_meta` response (`cost_avoided`, `total_cost_avoided`)
-**v0.2.7** — Security fix: `.claude/` excluded from sdist; structural CI guardrails prevent credential bundling
-**v0.2.5** — Path traversal hardening in `IndexStore`; `nexus-symdex --help` now works
-**v0.2.4** — Live token savings counter (`tokens_saved`, `total_tokens_saved` in every `_meta`)
-**v0.2.3** — Google Gemini Flash support (`GOOGLE_API_KEY`); auto-selects between Anthropic and Gemini
-**v0.2.2** — PHP language support
-
----
-
 ## Supported Languages
 
 | Language   | Extensions    | Symbol Types                            |
@@ -274,7 +257,7 @@ Every tool response includes a `_meta` envelope with timing, token savings, and 
 | Java       | `.java`       | method, class, type, constant           |
 | PHP        | `.php`        | function, class, method, type, constant |
 
-See LANGUAGE_SUPPORT.md for full semantics.
+See [LANGUAGE_SUPPORT.md](LANGUAGE_SUPPORT.md) for full semantics.
 
 ---
 
@@ -288,33 +271,13 @@ Built-in protections:
 - Binary detection
 - Configurable file size limits
 
-See SECURITY.md for details.
-
----
-
-## Best Use Cases
-
-- Large multi-module repositories  
-- Agent-driven refactors  
-- Architecture exploration  
-- Faster onboarding  
-- Token-efficient multi-agent workflows  
-
----
-
-## Not Intended For
-
-- LSP diagnostics or completions  
-- Editing workflows  
-- Real-time file watching  
-- Cross-repository global indexing  
-- Semantic program analysis  
+See [SECURITY.md](SECURITY.md) for details.
 
 ---
 
 ## Local LLMs (Ollama / LM Studio)
 
-You can use local, privacy-preserving AI models to generate summaries by providing an OpenAI-compatible endpoint.
+You can use local, privacy-preserving AI models to generate summaries and symbol explanations by providing an OpenAI-compatible endpoint.
 
 For **Ollama**, run a model locally, then configure the MCP server:
 ```json
@@ -342,8 +305,8 @@ For **LM Studio**, ensure the Local Server is running (usually on port 1234):
 | Variable                    | Purpose                   | Required |
 | --------------------------- | ------------------------- | -------- |
 | `GITHUB_TOKEN`              | GitHub API auth           | No       |
-| `ANTHROPIC_API_KEY`         | Symbol summaries via Claude Haiku (takes priority) | No       |
-| `GOOGLE_API_KEY`            | Symbol summaries via Gemini Flash | No       |
+| `ANTHROPIC_API_KEY`         | Symbol summaries and explanations via Claude Haiku (takes priority) | No       |
+| `GOOGLE_API_KEY`            | Symbol summaries and explanations via Gemini Flash | No       |
 | `OPENAI_API_BASE`           | Base URL for local LLMs (e.g. `http://localhost:11434/v1`) | No |
 | `OPENAI_API_KEY`            | API key for local LLMs (default: `local-llm`) | No |
 | `OPENAI_MODEL`              | Model name for local LLMs (default: `qwen3-coder`) | No |
@@ -353,7 +316,9 @@ For **LM Studio**, ensure the Local Server is running (usually on port 1234):
 
 ### Community Savings Meter
 
-Each tool call contributes an anonymous delta to a live global counter at [j.gravelle.us](https://j.gravelle.us). Only two values are ever sent: the tokens saved (a number) and a random anonymous install ID — never code, paths, repo names, or anything identifying. The anon ID is generated once and stored in `~/.code-index/_savings.json`.
+Each tool call contributes an anonymous delta to a live global counter at [j.gravelle.us](https://j.gravelle.us). Only two values are ever sent: the tokens saved (a number) and a random anonymous install ID. No code, paths, repo names, or anything identifying is transmitted.
+
+The anon ID is generated once and stored in `~/.code-index/_savings.json`.
 
 To disable, set `JCODEMUNCH_SHARE_SAVINGS=0` in your MCP server env.
 
@@ -361,11 +326,12 @@ To disable, set `JCODEMUNCH_SHARE_SAVINGS=0` in your MCP server env.
 
 ## Documentation
 
-- USER_GUIDE.md
-- ARCHITECTURE.md
-- SPEC.md
-- SECURITY.md
-- LANGUAGE_SUPPORT.md
+- [USER_GUIDE.md](USER_GUIDE.md) — Installation, configuration, workflows, and tool reference
+- [ARCHITECTURE.md](ARCHITECTURE.md) — Internal design, data flow, and module structure
+- [SPEC.md](SPEC.md) — Technical specification for all tools and data models
+- [SECURITY.md](SECURITY.md) — Security controls and threat model
+- [LANGUAGE_SUPPORT.md](LANGUAGE_SUPPORT.md) — Supported languages and adding new ones
+- [TOKEN_SAVINGS.md](TOKEN_SAVINGS.md) — Token savings methodology and benchmarks
 
 ---
 
@@ -383,7 +349,7 @@ To disable, set `JCODEMUNCH_SHARE_SAVINGS=0` in your MCP server env.
 
 ## License (Dual Use)
 
-This repository is **free for non-commercial use** under the terms below.  
+This repository is **free for non-commercial use** under the terms below.
 **Commercial use requires a paid commercial license.**
 
 ---
@@ -394,7 +360,7 @@ Copyright (c) 2026 J. Gravelle
 
 ### 1. Non-Commercial License Grant (Free)
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to use, copy, modify, merge, publish, and distribute the Software for **personal, educational, research, hobby, or other non-commercial purposes**, subject to the following conditions:
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to use, copy, modify, merge, publish, and distribute the Software for **personal, educational, research, hobby, or other non-commercial purposes**, subject to the following conditions:
 
 1. The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
@@ -406,20 +372,20 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 
 Commercial use of the Software requires a separate paid commercial license from the author.
 
-“Commercial use” includes, but is not limited to:
+"Commercial use" includes, but is not limited to:
 
 - Use of the Software in a business environment
 - Internal use within a for-profit organization
 - Incorporation into a product or service offered for sale
 - Use in connection with revenue generation, consulting, SaaS, hosting, or fee-based services
 
-For commercial licensing inquiries, contact:  
+For commercial licensing inquiries, contact:
 j@gravelle.us | https://j.gravelle.us
 
 Until a commercial license is obtained, commercial use is not permitted.
 
 ### 3. Disclaimer of Warranty
 
-THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
 
 IN NO EVENT SHALL THE AUTHOR OR COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
