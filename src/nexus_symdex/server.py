@@ -35,6 +35,14 @@ from .tools.find_dead_code import find_dead_code
 from .tools.learn_from_changes import learn_from_changes
 from .tools.recall_with_code import recall_with_code
 from .tools.review_with_history import review_with_history
+from .tools.diff_since_index import diff_since_index
+from .tools.get_symbol_history import get_symbol_history
+from .tools.suggest_symbols import suggest_symbols
+from .tools.get_hotspots import get_hotspots
+from .tools.get_type_hierarchy import get_type_hierarchy
+from .tools.get_similar_symbols import get_similar_symbols
+from .tools.compare_repos import compare_repos
+from .tools.export_index import export_index
 from .tools._utils import resolve_repo
 from .storage import IndexStore
 
@@ -628,6 +636,108 @@ async def list_tools() -> list[Tool]:
                 "required": ["repo", "changed_files"],
             },
         ),
+        Tool(
+            name="diff_since_index",
+            description="Show what changed on disk since the last indexing. Compares stored file hashes against current files to detect new, modified, and deleted files.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {"type": "string", "description": "Repository identifier (owner/repo or just repo name)"},
+                },
+                "required": ["repo"],
+            },
+        ),
+        Tool(
+            name="get_symbol_history",
+            description="Get the change history for a specific symbol across re-indexes. Shows when the symbol's content hash or signature changed.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {"type": "string", "description": "Repository identifier (owner/repo or just repo name)"},
+                    "symbol_id": {"type": "string", "description": "Symbol ID to get history for"},
+                },
+                "required": ["repo", "symbol_id"],
+            },
+        ),
+        Tool(
+            name="suggest_symbols",
+            description="Given a natural language task description, return the most relevant symbols to read or modify. Combines search relevance, file path heuristics, symbol kind weighting, and caller-count importance.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {"type": "string", "description": "Repository identifier (owner/repo or just repo name)"},
+                    "task": {"type": "string", "description": "Natural language task description (e.g., 'add rate limiting to the API')"},
+                    "max_results": {"type": "integer", "description": "Maximum symbols to suggest (default 15)", "default": 15},
+                },
+                "required": ["repo", "task"],
+            },
+        ),
+        Tool(
+            name="get_hotspots",
+            description="Rank symbols by how many callers reference them. Identifies the most-depended-on code — high-risk areas for changes.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {"type": "string", "description": "Repository identifier (owner/repo or just repo name)"},
+                    "kind": {"type": "string", "description": "Optional filter by symbol kind", "enum": ["function", "class", "method", "constant", "type"]},
+                    "min_callers": {"type": "integer", "description": "Minimum caller count to include (default 2)", "default": 2},
+                    "max_results": {"type": "integer", "description": "Maximum results (default 20)", "default": 20},
+                },
+                "required": ["repo"],
+            },
+        ),
+        Tool(
+            name="get_type_hierarchy",
+            description="For a class or type symbol, show its inheritance chain — parent classes and subclasses found in the indexed codebase.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {"type": "string", "description": "Repository identifier (owner/repo or just repo name)"},
+                    "symbol_id": {"type": "string", "description": "Symbol ID of a class or type"},
+                },
+                "required": ["repo", "symbol_id"],
+            },
+        ),
+        Tool(
+            name="get_similar_symbols",
+            description="Find symbols with similar signatures or structure. Useful for detecting near-duplicates, finding related implementations, or identifying refactoring candidates.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {"type": "string", "description": "Repository identifier (owner/repo or just repo name)"},
+                    "symbol_id": {"type": "string", "description": "Symbol ID to find similar symbols for"},
+                    "max_results": {"type": "integer", "description": "Maximum results (default 10)", "default": 10},
+                },
+                "required": ["repo", "symbol_id"],
+            },
+        ),
+        Tool(
+            name="compare_repos",
+            description="Diff the symbol surface between two indexed repositories. Shows symbols only in A, only in B, and modified (same name but different content). Useful for comparing forks, versions, or related projects.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo_a": {"type": "string", "description": "First repository identifier"},
+                    "repo_b": {"type": "string", "description": "Second repository identifier"},
+                },
+                "required": ["repo_a", "repo_b"],
+            },
+        ),
+        Tool(
+            name="export_index",
+            description="Export the index as structured markdown or JSON for direct context inclusion. Organized by file with symbol hierarchy, signatures, and summaries.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {"type": "string", "description": "Repository identifier (owner/repo or just repo name)"},
+                    "format": {"type": "string", "description": "Output format", "enum": ["markdown", "json"], "default": "markdown"},
+                    "include_signatures": {"type": "boolean", "description": "Include signatures (default true)", "default": True},
+                    "include_summaries": {"type": "boolean", "description": "Include summaries (default true)", "default": True},
+                    "path_prefix": {"type": "string", "description": "Optional path prefix filter"},
+                },
+                "required": ["repo"],
+            },
+        ),
     ]
 
 
@@ -840,6 +950,60 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 repo=arguments["repo"],
                 changed_files=arguments["changed_files"],
                 budget_tokens=arguments.get("budget_tokens", 8000),
+                storage_path=storage_path,
+            )
+        elif name == "diff_since_index":
+            result = diff_since_index(
+                repo=arguments["repo"],
+                storage_path=storage_path,
+            )
+        elif name == "get_symbol_history":
+            result = get_symbol_history(
+                repo=arguments["repo"],
+                symbol_id=arguments["symbol_id"],
+                storage_path=storage_path,
+            )
+        elif name == "suggest_symbols":
+            result = suggest_symbols(
+                repo=arguments["repo"],
+                task=arguments["task"],
+                max_results=arguments.get("max_results", 15),
+                storage_path=storage_path,
+            )
+        elif name == "get_hotspots":
+            result = get_hotspots(
+                repo=arguments["repo"],
+                kind=arguments.get("kind"),
+                min_callers=arguments.get("min_callers", 2),
+                max_results=arguments.get("max_results", 20),
+                storage_path=storage_path,
+            )
+        elif name == "get_type_hierarchy":
+            result = get_type_hierarchy(
+                repo=arguments["repo"],
+                symbol_id=arguments["symbol_id"],
+                storage_path=storage_path,
+            )
+        elif name == "get_similar_symbols":
+            result = get_similar_symbols(
+                repo=arguments["repo"],
+                symbol_id=arguments["symbol_id"],
+                max_results=arguments.get("max_results", 10),
+                storage_path=storage_path,
+            )
+        elif name == "compare_repos":
+            result = compare_repos(
+                repo_a=arguments["repo_a"],
+                repo_b=arguments["repo_b"],
+                storage_path=storage_path,
+            )
+        elif name == "export_index":
+            result = export_index(
+                repo=arguments["repo"],
+                format=arguments.get("format", "markdown"),
+                include_signatures=arguments.get("include_signatures", True),
+                include_summaries=arguments.get("include_summaries", True),
+                path_prefix=arguments.get("path_prefix"),
                 storage_path=storage_path,
             )
         else:

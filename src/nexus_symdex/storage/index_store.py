@@ -362,6 +362,9 @@ class IndexStore:
         tmp_path.replace(index_path)
         _cache_invalidate(str(index_path))
 
+        # Save symbol history snapshots
+        self.save_history(owner, name, index)
+
         # Save raw files
         content_dir = self._content_dir(owner, name)
         content_dir.mkdir(parents=True, exist_ok=True)
@@ -580,6 +583,9 @@ class IndexStore:
         tmp_path.replace(index_path)
         _cache_invalidate(str(index_path))
 
+        # Save symbol history snapshots
+        self.save_history(owner, name, updated)
+
         # Update raw files
         content_dir = self._content_dir(owner, name)
         content_dir.mkdir(parents=True, exist_ok=True)
@@ -738,6 +744,65 @@ class IndexStore:
             "byte_length": symbol.byte_length,
             "content_hash": symbol.content_hash,
         }
+
+    def _history_path(self, owner: str, name: str) -> Path:
+        """Path to symbol history JSON file."""
+        return self.base_path / f"{self._repo_slug(owner, name)}.history.json"
+
+    def save_history(self, owner: str, name: str, index: "CodeIndex") -> None:
+        """Append symbol snapshots to the history file.
+
+        Each symbol gets an entry with timestamp, content_hash, and signature.
+        Only appends entries for symbols whose content_hash changed since the
+        last recorded entry (or that are new to the history).
+        """
+        history_path = self._history_path(owner, name)
+
+        # Load existing history
+        history: dict[str, list[dict]] = {}
+        if history_path.exists():
+            try:
+                with open(history_path, "r", encoding="utf-8") as f:
+                    history = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                history = {}
+
+        timestamp = index.indexed_at
+
+        for sym in index.symbols:
+            sym_id = sym.get("id", "")
+            if not sym_id:
+                continue
+
+            entry = {
+                "timestamp": timestamp,
+                "symbol_id": sym_id,
+                "content_hash": sym.get("content_hash", ""),
+                "signature": sym.get("signature", ""),
+            }
+
+            entries = history.get(sym_id, [])
+            # Only append if content_hash changed from last entry (or first entry)
+            if not entries or entries[-1].get("content_hash") != entry["content_hash"]:
+                entries.append(entry)
+                history[sym_id] = entries
+
+        # Write atomically
+        tmp_path = history_path.with_suffix(".json.tmp")
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(history, f, indent=2)
+        tmp_path.replace(history_path)
+
+    def load_history(self, owner: str, name: str) -> dict[str, list[dict]]:
+        """Load the symbol history file. Returns {symbol_id: [entries...]}."""
+        history_path = self._history_path(owner, name)
+        if not history_path.exists():
+            return {}
+        try:
+            with open(history_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return {}
 
     def _index_to_dict(self, index: CodeIndex) -> dict:
         """Convert CodeIndex to dict."""
