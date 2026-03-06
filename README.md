@@ -16,7 +16,9 @@ Instead of dumping entire files into context, nexus-symdex parses your codebase 
 - **Byte-offset retrieval**: O(1) source lookup via stored offsets, no re-parsing
 - **Incremental indexing**: Only re-parse changed files (hash-based or git-diff)
 - **Architecture intelligence**: Dead code detection, import graphs, impact analysis, architecture maps
-- **28 tools** for comprehensive code exploration
+- **Code evolution (NexusTime)**: Git-powered timeline, complexity metrics, contributor mapping, churn analysis
+- **Pattern-aware scaffolding (NexusForge)**: Convention extraction, pattern detection, AI-assisted code generation
+- **43 tools** for comprehensive code exploration
 
 ## Installation
 
@@ -99,6 +101,23 @@ Add to your MCP client config:
 | `unwatch_folder` | Stop watching a folder |
 | `list_watches` | List active folder watches |
 
+### NexusTime -- Code Evolution
+
+| Tool | Description |
+|------|-------------|
+| `get_evolution_timeline` | Git-powered change timeline for a symbol or file -- who changed what, when |
+| `get_complexity_metrics` | Complexity scoring: line count, nesting depth, cyclomatic complexity, risk level |
+| `get_contributors` | Contributor mapping via `git blame` -- ownership percentages per symbol/file |
+| `get_code_churn` | Change frequency analysis -- commits, lines added/removed, churn score, risk level |
+
+### NexusForge -- Pattern-Aware Scaffolding
+
+| Tool | Description |
+|------|-------------|
+| `extract_conventions` | Analyze naming conventions, structure patterns, code patterns, framework detection |
+| `detect_patterns` | Find recurring structural patterns -- groups of symbols following the same template |
+| `scaffold_symbol` | Generate code scaffold matching conventions; AI-assisted with template fallback |
+
 ## Usage Examples
 
 ### Index and explore a repo
@@ -135,6 +154,23 @@ get_callers repo="my-project" symbol_id="db.py::connect#function"
 
 ```
 get_context repo="my-project" focus="authentication" budget_tokens=4000 include_deps=true
+```
+
+### Code evolution (NexusTime)
+
+```
+get_evolution_timeline repo="my-project" symbol_id="auth.py::login#function"
+get_complexity_metrics repo="my-project" sort_by="complexity" max_results=10
+get_contributors repo="my-project" file_path="src/auth.py"
+get_code_churn repo="my-project" since="3 months ago"
+```
+
+### Pattern-aware scaffolding (NexusForge)
+
+```
+extract_conventions repo="my-project"
+detect_patterns repo="my-project" kind="function" min_group_size=3
+scaffold_symbol repo="my-project" intent="API endpoint for user deletion" like="routes.py::get_users#function"
 ```
 
 ## Benchmarks

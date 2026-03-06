@@ -216,8 +216,6 @@ def _classify_file(
         # Utility threshold: imported by many (>= 3 or >= 10% of files) and imports few (<= 1)
         utility_threshold = max(3, total_files // 10)
         if importer_count >= utility_threshold and import_count <= 1:
-            if _UTILITY_PATTERN.search(normalized):
-                return "utility"
             return "utility"
         return "core/service"
 

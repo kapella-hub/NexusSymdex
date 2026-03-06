@@ -54,6 +54,7 @@ def get_review_context(
 
     # 2. Find callers of changed symbols (affected code)
     caller_ids = set()
+    changed_files_set = set(changed_files)
     for sym in changed_symbols:
         sym_name = sym.get("name", "")
         sym_qname = sym.get("qualified_name", "")
@@ -64,22 +65,10 @@ def get_review_context(
             # Match by name or qualified name
             if ref_name == sym_name or ref_name == sym_qname or ref_name.endswith(f".{sym_name}"):
                 ref_file = ref.get("file", "")
-                if ref_file in changed_files:
+                if ref_file in changed_files_set:
                     continue  # Skip callers in the same changed files
                 ref_line = ref.get("line", 0)
-                # Find the tightest (smallest-span) symbol that contains this reference
-                best_id = None
-                best_span = float("inf")
-                for candidate in index.symbols:
-                    if candidate.get("file") != ref_file:
-                        continue
-                    c_start = candidate.get("line", 0)
-                    c_end = candidate.get("end_line", 0)
-                    if c_start <= ref_line <= c_end:
-                        span = c_end - c_start
-                        if span < best_span:
-                            best_span = span
-                            best_id = candidate["id"]
+                best_id = index.find_containing_symbol(ref_file, ref_line)
                 if best_id and best_id not in changed_sym_ids:
                     caller_ids.add(best_id)
 
@@ -90,12 +79,8 @@ def get_review_context(
         sym_start = sym.get("line", 0)
         sym_end = sym.get("end_line", 0)
 
-        # Find calls within the symbol's range
-        for ref in index.references:
-            if ref.get("file") != sym_file:
-                continue
-            if ref.get("type") != "call":
-                continue
+        # Find calls within the symbol's range using per-file ref lookup
+        for ref in index.get_refs(sym_file, "call"):
             ref_line = ref.get("line", 0)
             if sym_start <= ref_line <= sym_end:
                 callee_name = ref.get("name", "")

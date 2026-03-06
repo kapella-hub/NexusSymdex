@@ -43,6 +43,13 @@ from .tools.get_type_hierarchy import get_type_hierarchy
 from .tools.get_similar_symbols import get_similar_symbols
 from .tools.compare_repos import compare_repos
 from .tools.export_index import export_index
+from .tools.get_evolution_timeline import get_evolution_timeline
+from .tools.get_complexity_metrics import get_complexity_metrics
+from .tools.get_contributors import get_contributors
+from .tools.get_code_churn import get_code_churn
+from .tools.extract_conventions import extract_conventions
+from .tools.detect_patterns import detect_patterns
+from .tools.scaffold_symbol import scaffold_symbol
 from .tools._utils import resolve_repo
 from .storage import IndexStore
 
@@ -738,6 +745,104 @@ async def list_tools() -> list[Tool]:
                 "required": ["repo"],
             },
         ),
+        Tool(
+            name="get_evolution_timeline",
+            description="Track how a symbol or file has changed over time using git history. Returns a timeline of commits with authors, dates, and messages.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {"type": "string", "description": "Repository identifier (owner/repo or just repo name)"},
+                    "symbol_id": {"type": "string", "description": "Symbol ID to track changes for"},
+                    "file_path": {"type": "string", "description": "File path to track (used if no symbol_id)"},
+                    "max_entries": {"type": "integer", "description": "Max timeline entries (default 20)", "default": 20},
+                },
+                "required": ["repo"],
+            },
+        ),
+        Tool(
+            name="get_complexity_metrics",
+            description="Compute complexity metrics for symbols: line count, nesting depth, parameter count, and cyclomatic complexity approximation. Identifies high-risk complex code.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {"type": "string", "description": "Repository identifier (owner/repo or just repo name)"},
+                    "symbol_id": {"type": "string", "description": "Specific symbol to analyze"},
+                    "file_path": {"type": "string", "description": "Analyze all symbols in this file"},
+                    "kind": {"type": "string", "description": "Filter by symbol kind (e.g. function, method)"},
+                    "sort_by": {"type": "string", "description": "Sort field", "enum": ["complexity", "lines", "nesting"], "default": "complexity"},
+                    "max_results": {"type": "integer", "description": "Max results (default 20)", "default": 20},
+                },
+                "required": ["repo"],
+            },
+        ),
+        Tool(
+            name="get_contributors",
+            description="Map contributors to a file or symbol using git blame. Shows who owns each area of the codebase with line counts and ownership percentages.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {"type": "string", "description": "Repository identifier (owner/repo or just repo name)"},
+                    "file_path": {"type": "string", "description": "File to analyze"},
+                    "symbol_id": {"type": "string", "description": "Symbol to analyze"},
+                    "max_results": {"type": "integer", "description": "Max contributor results (default 20)", "default": 20},
+                },
+                "required": ["repo"],
+            },
+        ),
+        Tool(
+            name="get_code_churn",
+            description="Identify files with the highest change frequency (churn). High churn combined with high complexity indicates technical debt hotspots.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {"type": "string", "description": "Repository identifier (owner/repo or just repo name)"},
+                    "since": {"type": "string", "description": "Date filter (e.g. '2025-01-01' or '3 months ago')"},
+                    "max_results": {"type": "integer", "description": "Max results (default 20)", "default": 20},
+                },
+                "required": ["repo"],
+            },
+        ),
+        Tool(
+            name="extract_conventions",
+            description="Analyze codebase to extract naming conventions, file organization patterns, common code patterns (decorators, error handling), and framework detection. Fully automated, no AI needed.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {"type": "string", "description": "Repository identifier (owner/repo or just repo name)"},
+                    "focus": {"type": "string", "description": "Focus area", "enum": ["naming", "structure", "patterns", "framework", "all"], "default": "all"},
+                },
+                "required": ["repo"],
+            },
+        ),
+        Tool(
+            name="detect_patterns",
+            description="Find recurring structural patterns in the codebase - groups of symbols that follow the same template (e.g., all API endpoints follow the same structure).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {"type": "string", "description": "Repository identifier (owner/repo or just repo name)"},
+                    "kind": {"type": "string", "description": "Filter by symbol kind (e.g. function, method, class)"},
+                    "min_group_size": {"type": "integer", "description": "Minimum symbols to form a pattern (default 3)", "default": 3},
+                    "max_results": {"type": "integer", "description": "Max pattern groups (default 10)", "default": 10},
+                },
+                "required": ["repo"],
+            },
+        ),
+        Tool(
+            name="scaffold_symbol",
+            description="Generate a code scaffold for a new symbol that matches existing codebase conventions. Uses AI when available (same providers as summarizer), with template-based fallback.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {"type": "string", "description": "Repository identifier (owner/repo or just repo name)"},
+                    "intent": {"type": "string", "description": "What the new symbol should do (e.g. 'API endpoint for user deletion')"},
+                    "kind": {"type": "string", "description": "Symbol kind to generate (function, class, method)"},
+                    "target_file": {"type": "string", "description": "Where the scaffold should go (helps match conventions)"},
+                    "like": {"type": "string", "description": "Symbol ID to use as template"},
+                },
+                "required": ["repo", "intent"],
+            },
+        ),
     ]
 
 
@@ -1004,6 +1109,62 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 include_signatures=arguments.get("include_signatures", True),
                 include_summaries=arguments.get("include_summaries", True),
                 path_prefix=arguments.get("path_prefix"),
+                storage_path=storage_path,
+            )
+        elif name == "get_evolution_timeline":
+            result = get_evolution_timeline(
+                repo=arguments["repo"],
+                symbol_id=arguments.get("symbol_id"),
+                file_path=arguments.get("file_path"),
+                max_entries=arguments.get("max_entries", 20),
+                storage_path=storage_path,
+            )
+        elif name == "get_complexity_metrics":
+            result = get_complexity_metrics(
+                repo=arguments["repo"],
+                symbol_id=arguments.get("symbol_id"),
+                file_path=arguments.get("file_path"),
+                kind=arguments.get("kind"),
+                sort_by=arguments.get("sort_by", "complexity"),
+                max_results=arguments.get("max_results", 20),
+                storage_path=storage_path,
+            )
+        elif name == "get_contributors":
+            result = get_contributors(
+                repo=arguments["repo"],
+                file_path=arguments.get("file_path"),
+                symbol_id=arguments.get("symbol_id"),
+                max_results=arguments.get("max_results", 20),
+                storage_path=storage_path,
+            )
+        elif name == "get_code_churn":
+            result = get_code_churn(
+                repo=arguments["repo"],
+                since=arguments.get("since"),
+                max_results=arguments.get("max_results", 20),
+                storage_path=storage_path,
+            )
+        elif name == "extract_conventions":
+            result = extract_conventions(
+                repo=arguments["repo"],
+                focus=arguments.get("focus", "all"),
+                storage_path=storage_path,
+            )
+        elif name == "detect_patterns":
+            result = detect_patterns(
+                repo=arguments["repo"],
+                kind=arguments.get("kind"),
+                min_group_size=arguments.get("min_group_size", 3),
+                max_results=arguments.get("max_results", 10),
+                storage_path=storage_path,
+            )
+        elif name == "scaffold_symbol":
+            result = scaffold_symbol(
+                repo=arguments["repo"],
+                intent=arguments["intent"],
+                kind=arguments.get("kind"),
+                target_file=arguments.get("target_file"),
+                like=arguments.get("like"),
                 storage_path=storage_path,
             )
         else:

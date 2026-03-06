@@ -64,7 +64,7 @@ def get_callers(
                 continue
 
             # Find which symbol contains this call
-            containing_symbol = _find_containing_symbol(index, ref_file, ref_line)
+            containing_symbol = index.find_containing_symbol(ref_file, ref_line)
 
             callers.append({
                 "file": ref_file,
@@ -82,22 +82,3 @@ def get_callers(
         "callers": callers,
         "_meta": {"timing_ms": round(elapsed, 1)},
     }
-
-
-def _find_containing_symbol(index, file_path: str, line: int) -> Optional[str]:
-    """Find the symbol that contains a given line in a file."""
-    best = None
-    best_span = float("inf")
-
-    for sym in index.symbols:
-        if sym.get("file") != file_path:
-            continue
-        sym_start = sym.get("line", 0)
-        sym_end = sym.get("end_line", 0)
-        if sym_start <= line <= sym_end:
-            span = sym_end - sym_start
-            if span < best_span:
-                best_span = span
-                best = sym.get("id")
-
-    return best

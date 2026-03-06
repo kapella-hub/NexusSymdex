@@ -35,21 +35,20 @@ def resolve_call_targets(index, call_name: str, caller_file: str) -> list[str]:
     """
     # Get imports for the caller's file
     imported_files: set[str] = set()
-    for ref in index.references:
-        if ref.get("type") == "import" and ref.get("file") == caller_file:
-            imp_name = ref.get("name", "")
-            # Try to resolve import to a file
-            base = imp_name.split("/")[-1].split(".")[-1]
-            for sf in index.source_files:
-                if (
-                    sf.endswith(f"/{base}.py")
-                    or sf.endswith(f"/{base}.js")
-                    or sf.endswith(f"/{base}.ts")
-                    or sf == f"{base}.py"
-                    or sf == f"{base}.js"
-                    or sf == f"{base}.ts"
-                ):
-                    imported_files.add(sf)
+    for ref in index.get_refs(caller_file, "import"):
+        imp_name = ref.get("name", "")
+        # Try to resolve import to a file
+        base = imp_name.split("/")[-1].split(".")[-1]
+        for sf in index.source_files:
+            if (
+                sf.endswith(f"/{base}.py")
+                or sf.endswith(f"/{base}.js")
+                or sf.endswith(f"/{base}.ts")
+                or sf == f"{base}.py"
+                or sf == f"{base}.js"
+                or sf == f"{base}.ts"
+            ):
+                imported_files.add(sf)
 
     # Strip common prefixes from call name for matching
     # e.g., "self.parse" -> "parse", "this.render" -> "render"

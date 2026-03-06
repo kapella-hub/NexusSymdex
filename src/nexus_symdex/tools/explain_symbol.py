@@ -68,16 +68,16 @@ def _parse_json_response(text: str) -> Optional[dict]:
 
 
 async def _explain_via_anthropic(prompt: str) -> Optional[dict]:
-    """Try explaining via Anthropic API."""
+    """Try explaining via Anthropic API (async to avoid blocking the event loop)."""
     try:
-        from anthropic import Anthropic
+        from anthropic import AsyncAnthropic
 
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
             return None
 
-        client = Anthropic(api_key=api_key)
-        response = client.messages.create(
+        client = AsyncAnthropic(api_key=api_key)
+        response = await client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=1024,
             temperature=0.0,
@@ -89,7 +89,7 @@ async def _explain_via_anthropic(prompt: str) -> Optional[dict]:
 
 
 async def _explain_via_gemini(prompt: str) -> Optional[dict]:
-    """Try explaining via Google Gemini API."""
+    """Try explaining via Google Gemini API (async to avoid blocking the event loop)."""
     try:
         import google.generativeai as genai
 
@@ -99,7 +99,7 @@ async def _explain_via_gemini(prompt: str) -> Optional[dict]:
 
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content(prompt)
+        response = await model.generate_content_async(prompt)
         return _parse_json_response(response.text)
     except Exception:
         return None

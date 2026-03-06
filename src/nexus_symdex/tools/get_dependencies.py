@@ -49,27 +49,20 @@ def get_dependencies(
     imports = []
     calls = []
 
-    for ref in index.references:
-        ref_file = ref.get("file", "")
+    # Use cached per-file ref lookups
+    for ref in index.get_refs(target_file, "import"):
+        imports.append({
+            "name": ref["name"],
+            "line": ref.get("line", 0),
+        })
+
+    for ref in index.get_refs(target_file, "call"):
         ref_line = ref.get("line", 0)
-
-        # For imports: match file-level imports (line before symbol or at top of file)
-        # For calls: match within the symbol's line range
-        if ref_file != target_file:
-            continue
-
-        if ref.get("type") == "import":
-            # Include file-level imports (they're dependencies of all symbols in the file)
-            imports.append({
+        if sym_start <= ref_line <= sym_end:
+            calls.append({
                 "name": ref["name"],
                 "line": ref_line,
             })
-        elif ref.get("type") == "call":
-            if sym_start <= ref_line <= sym_end:
-                calls.append({
-                    "name": ref["name"],
-                    "line": ref_line,
-                })
 
     # Deduplicate by name while preserving order
     seen_imports: set[str] = set()

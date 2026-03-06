@@ -105,8 +105,11 @@ def find_dead_code(
         if qualified.startswith("exports.") or qualified.startswith("module.exports"):
             continue
 
-        # Skip __init__ methods on classes (parent is set)
-        if sym_name == "__init__" and sym.get("parent") is not None:
+        # Skip all dunder methods — they are invoked implicitly by
+        # the runtime (e.g. __str__, __repr__, __eq__, __hash__,
+        # __len__, __iter__, __enter__, __exit__, etc.) and will
+        # never appear in explicit call references.
+        if sym_name.startswith("__") and sym_name.endswith("__"):
             continue
 
         dead_symbols.append({

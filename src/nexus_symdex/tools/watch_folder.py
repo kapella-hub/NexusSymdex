@@ -74,8 +74,11 @@ def _watcher_loop(folder_path: Path, storage_path: Optional[str], stop_event: th
                     storage_path=storage_path,
                     incremental=True,
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                import logging
+                logging.getLogger("nexus_symdex.watch").warning(
+                    "Auto-reindex failed for %s: %s", folder_path, exc
+                )
             # Refresh snapshot after reindex
             last_mtimes = _get_indexed_mtimes(store, owner, name, folder_path)
         else:

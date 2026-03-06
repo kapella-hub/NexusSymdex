@@ -22,11 +22,7 @@ def _find_dependency_ids(index, symbol_id: str) -> list[str]:
     sym_end = symbol["end_line"]
 
     callee_names = set()
-    for ref in index.references:
-        if ref.get("type") != "call":
-            continue
-        if ref.get("file") != target_file:
-            continue
+    for ref in index.get_refs(target_file, "call"):
         ref_line = ref.get("line", 0)
         if sym_start <= ref_line <= sym_end:
             callee_names.add(ref.get("name", ""))
@@ -52,9 +48,7 @@ def _find_file_imports(index, file_path: str) -> list[str]:
     to symbols in other files.
     """
     import_names = set()
-    for ref in index.references:
-        if ref.get("type") != "import" or ref.get("file") != file_path:
-            continue
+    for ref in index.get_refs(file_path, "import"):
         import_names.add(ref.get("name", ""))
 
     # Resolve import names to symbols (heuristic: match by name or module)

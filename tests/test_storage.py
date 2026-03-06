@@ -260,3 +260,96 @@ def test_codeindex_search():
     
     results = index.search("login", kind="function")
     assert len(results) > 0
+
+
+def test_codeindex_get_symbols_in_file():
+    """Test per-file symbol lookup."""
+    index = CodeIndex(
+        repo="test/repo",
+        owner="test",
+        name="repo",
+        indexed_at="2025-01-15T10:00:00",
+        source_files=["a.py", "b.py"],
+        languages={"python": 2},
+        symbols=[
+            {"id": "a::foo", "name": "foo", "kind": "function", "file": "a.py", "line": 1, "end_line": 5},
+            {"id": "a::bar", "name": "bar", "kind": "function", "file": "a.py", "line": 7, "end_line": 10},
+            {"id": "b::baz", "name": "baz", "kind": "function", "file": "b.py", "line": 1, "end_line": 3},
+        ],
+    )
+
+    a_syms = index.get_symbols_in_file("a.py")
+    assert len(a_syms) == 2
+    assert {s["name"] for s in a_syms} == {"foo", "bar"}
+
+    b_syms = index.get_symbols_in_file("b.py")
+    assert len(b_syms) == 1
+    assert b_syms[0]["name"] == "baz"
+
+    assert index.get_symbols_in_file("nonexistent.py") == []
+
+
+def test_codeindex_find_containing_symbol():
+    """Test finding the tightest symbol containing a line."""
+    index = CodeIndex(
+        repo="test/repo",
+        owner="test",
+        name="repo",
+        indexed_at="2025-01-15T10:00:00",
+        source_files=["main.py"],
+        languages={"python": 1},
+        symbols=[
+            {"id": "main::MyClass", "name": "MyClass", "kind": "class", "file": "main.py", "line": 1, "end_line": 20},
+            {"id": "main::MyClass.method", "name": "method", "kind": "method", "file": "main.py", "line": 5, "end_line": 10},
+            {"id": "main::standalone", "name": "standalone", "kind": "function", "file": "main.py", "line": 22, "end_line": 25},
+        ],
+    )
+
+    # Line inside method (should pick tightest: method, not class)
+    assert index.find_containing_symbol("main.py", 7) == "main::MyClass.method"
+
+    # Line inside class but outside method
+    assert index.find_containing_symbol("main.py", 15) == "main::MyClass"
+
+    # Line inside standalone function
+    assert index.find_containing_symbol("main.py", 23) == "main::standalone"
+
+    # Line not in any symbol
+    assert index.find_containing_symbol("main.py", 30) is None
+
+    # Non-existent file
+    assert index.find_containing_symbol("other.py", 1) is None
+
+
+def test_codeindex_get_refs():
+    """Test per-file, per-type reference lookup."""
+    index = CodeIndex(
+        repo="test/repo",
+        owner="test",
+        name="repo",
+        indexed_at="2025-01-15T10:00:00",
+        source_files=["a.py", "b.py"],
+        languages={"python": 2},
+        symbols=[],
+        references=[
+            {"type": "import", "name": "os", "file": "a.py", "line": 1},
+            {"type": "call", "name": "foo", "file": "a.py", "line": 5},
+            {"type": "call", "name": "bar", "file": "a.py", "line": 8},
+            {"type": "import", "name": "sys", "file": "b.py", "line": 1},
+            {"type": "call", "name": "baz", "file": "b.py", "line": 3},
+        ],
+    )
+
+    a_imports = index.get_refs("a.py", "import")
+    assert len(a_imports) == 1
+    assert a_imports[0]["name"] == "os"
+
+    a_calls = index.get_refs("a.py", "call")
+    assert len(a_calls) == 2
+
+    b_calls = index.get_refs("b.py", "call")
+    assert len(b_calls) == 1
+    assert b_calls[0]["name"] == "baz"
+
+    assert index.get_refs("nonexistent.py", "call") == []
+    assert index.get_refs("a.py", "nonexistent") == []

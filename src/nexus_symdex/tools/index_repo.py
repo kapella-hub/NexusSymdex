@@ -291,7 +291,9 @@ async def index_repo(
             raw_files_subset: dict[str, str] = {}
 
             for path in files_to_parse:
-                content = current_files[path]
+                content = current_files.get(path)
+                if not content:
+                    continue  # File in diff but not fetched/empty
                 _, ext = os.path.splitext(path)
                 language = LANGUAGE_EXTENSIONS.get(ext)
                 if not language:
@@ -395,11 +397,11 @@ async def index_repo(
             "files": parsed_files[:20],  # Limit files in response
         }
 
+        if len(source_files) >= 500:
+            warnings.append("Repository has many files; indexed first 500")
+
         if warnings:
             result["warnings"] = warnings
-
-        if len(source_files) >= 500:
-            result["warnings"] = warnings + ["Repository has many files; indexed first 500"]
 
         return result
     

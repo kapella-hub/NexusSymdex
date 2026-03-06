@@ -138,28 +138,9 @@ def _find_caller_symbol_ids(index, symbol_id: str) -> list[str]:
         if ref_file == target_file and symbol["line"] <= ref_line <= symbol["end_line"]:
             continue
 
-        containing_id = _find_containing_symbol(index, ref_file, ref_line)
+        containing_id = index.find_containing_symbol(ref_file, ref_line)
         if containing_id and containing_id not in seen:
             seen.add(containing_id)
             result.append(containing_id)
 
     return result
-
-
-def _find_containing_symbol(index, file_path: str, line: int) -> Optional[str]:
-    """Find the symbol that contains a given line in a file."""
-    best = None
-    best_span = float("inf")
-
-    for sym in index.symbols:
-        if sym.get("file") != file_path:
-            continue
-        sym_start = sym.get("line", 0)
-        sym_end = sym.get("end_line", 0)
-        if sym_start <= line <= sym_end:
-            span = sym_end - sym_start
-            if span < best_span:
-                best_span = span
-                best = sym.get("id")
-
-    return best

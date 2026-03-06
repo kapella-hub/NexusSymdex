@@ -97,8 +97,8 @@ def _build_tree(files: list[str], index, path_prefix: str, include_summaries: bo
             
             if is_last:
                 # File node
-                # Count symbols for this file
-                symbol_count = sum(1 for s in index.symbols if s.get("file") == file_path)
+                # Count symbols for this file (uses cached per-file index)
+                symbol_count = len(index.get_symbols_in_file(file_path))
                 
                 # Get language
                 lang = ""

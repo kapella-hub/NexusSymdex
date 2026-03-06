@@ -22,6 +22,7 @@ from typing import Optional
 _SAVINGS_FILE = "_savings.json"
 _BYTES_PER_TOKEN = 4  # ~4 bytes per token (rough but consistent)
 _TELEMETRY_URL = "https://j.gravelle.us/APIs/savings/post.php"
+_LOCK = threading.Lock()
 
 # Input token pricing ($ per token). Update as models reprice.
 PRICING = {
@@ -60,25 +61,30 @@ def _share_savings(delta: int, anon_id: str) -> None:
 
 
 def record_savings(tokens_saved: int, base_path: Optional[str] = None) -> int:
-    """Add tokens_saved to the running total. Returns new cumulative total."""
+    """Add tokens_saved to the running total. Returns new cumulative total.
+
+    Thread-safe: uses a module-level lock to protect the read-modify-write cycle.
+    """
     path = _savings_path(base_path)
-    try:
-        data = json.loads(path.read_text()) if path.exists() else {}
-    except Exception:
-        data = {}
-
     delta = max(0, tokens_saved)
-    total = data.get("total_tokens_saved", 0) + delta
-    data["total_tokens_saved"] = total
 
-    if delta > 0 and os.environ.get("JCODEMUNCH_SHARE_SAVINGS", "1") != "0":
-        anon_id = _get_or_create_anon_id(data)
-        _share_savings(delta, anon_id)
+    with _LOCK:
+        try:
+            data = json.loads(path.read_text()) if path.exists() else {}
+        except Exception:
+            data = {}
 
-    try:
-        path.write_text(json.dumps(data))
-    except Exception:
-        pass
+        total = data.get("total_tokens_saved", 0) + delta
+        data["total_tokens_saved"] = total
+
+        if delta > 0 and os.environ.get("JCODEMUNCH_SHARE_SAVINGS", "1") != "0":
+            anon_id = _get_or_create_anon_id(data)
+            _share_savings(delta, anon_id)
+
+        try:
+            path.write_text(json.dumps(data))
+        except Exception:
+            pass
 
     return total
 

@@ -174,6 +174,8 @@ class CodeIndex:
 
     def __post_init__(self):
         self._symbol_index: Optional[dict[str, dict]] = None
+        self._symbols_by_file: Optional[dict[str, list[dict]]] = None
+        self._refs_by_file_type: Optional[dict[tuple[str, str], list[dict]]] = None
 
     def _build_symbol_index(self) -> dict[str, dict]:
         """Build id -> symbol dict for O(1) lookup."""
@@ -184,6 +186,54 @@ class CodeIndex:
         if self._symbol_index is None:
             self._symbol_index = self._build_symbol_index()
         return self._symbol_index.get(symbol_id)
+
+    def _build_symbols_by_file(self) -> dict[str, list[dict]]:
+        """Build file -> symbols dict for per-file lookups."""
+        by_file: dict[str, list[dict]] = {}
+        for sym in self.symbols:
+            f = sym.get("file", "")
+            by_file.setdefault(f, []).append(sym)
+        return by_file
+
+    def get_symbols_in_file(self, file_path: str) -> list[dict]:
+        """Get all symbols in a file (cached)."""
+        if self._symbols_by_file is None:
+            self._symbols_by_file = self._build_symbols_by_file()
+        return self._symbols_by_file.get(file_path, [])
+
+    def find_containing_symbol(self, file_path: str, line: int) -> Optional[str]:
+        """Find the tightest (smallest-span) symbol that contains a given line.
+
+        Returns the symbol ID, or None if no symbol contains the line.
+        Uses per-file lookup for O(symbols_in_file) instead of O(all_symbols).
+        """
+        best_id = None
+        best_span = float("inf")
+
+        for sym in self.get_symbols_in_file(file_path):
+            sym_start = sym.get("line", 0)
+            sym_end = sym.get("end_line", 0)
+            if sym_start <= line <= sym_end:
+                span = sym_end - sym_start
+                if span < best_span:
+                    best_span = span
+                    best_id = sym.get("id")
+
+        return best_id
+
+    def _build_refs_by_file_type(self) -> dict[tuple[str, str], list[dict]]:
+        """Build (file, type) -> refs dict for efficient reference lookups."""
+        by_ft: dict[tuple[str, str], list[dict]] = {}
+        for ref in self.references:
+            key = (ref.get("file", ""), ref.get("type", ""))
+            by_ft.setdefault(key, []).append(ref)
+        return by_ft
+
+    def get_refs(self, file_path: str, ref_type: str) -> list[dict]:
+        """Get references for a file and type (cached)."""
+        if self._refs_by_file_type is None:
+            self._refs_by_file_type = self._build_refs_by_file_type()
+        return self._refs_by_file_type.get((file_path, ref_type), [])
 
     def search(self, query: str, kind: Optional[str] = None, file_pattern: Optional[str] = None) -> list[dict]:
         """Search symbols with weighted scoring."""
@@ -397,28 +447,34 @@ class IndexStore:
         if cached is not None:
             return cached
 
-        with open(index_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        try:
+            with open(index_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return None  # Corrupted or unreadable index file
 
         # Version check
         stored_version = data.get("index_version", 1)
         if stored_version > INDEX_VERSION:
             return None  # Future version we can't read
 
-        index = CodeIndex(
-            repo=data["repo"],
-            owner=data["owner"],
-            name=data["name"],
-            indexed_at=data["indexed_at"],
-            source_files=data["source_files"],
-            languages=data["languages"],
-            symbols=data["symbols"],
-            index_version=stored_version,
-            file_hashes=data.get("file_hashes", {}),
-            git_head=data.get("git_head", ""),
-            file_summaries=data.get("file_summaries", {}),
-            references=data.get("references", []),
-        )
+        try:
+            index = CodeIndex(
+                repo=data["repo"],
+                owner=data["owner"],
+                name=data["name"],
+                indexed_at=data["indexed_at"],
+                source_files=data["source_files"],
+                languages=data["languages"],
+                symbols=data["symbols"],
+                index_version=stored_version,
+                file_hashes=data.get("file_hashes", {}),
+                git_head=data.get("git_head", ""),
+                file_summaries=data.get("file_summaries", {}),
+                references=data.get("references", []),
+            )
+        except KeyError:
+            return None  # Malformed index data
 
         _cache_put(path_key, current_mtime, index)
         return index
@@ -688,6 +744,9 @@ class IndexStore:
         repos = []
 
         for index_file in self.base_path.glob("*.json"):
+            # Skip non-index JSON files (history snapshots, token savings)
+            if index_file.name.endswith(".history.json") or index_file.name == "_savings.json":
+                continue
             try:
                 with open(index_file, "r", encoding="utf-8") as f:
                     data = json.load(f)

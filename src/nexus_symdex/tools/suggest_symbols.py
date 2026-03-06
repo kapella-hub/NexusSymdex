@@ -49,21 +49,6 @@ def _is_architecture_task(keywords: list[str]) -> bool:
     return bool(set(keywords) & _ARCHITECTURE_WORDS)
 
 
-def _count_callers(index, symbol_name: str) -> int:
-    """Count how many call references point to a symbol name."""
-    count = 0
-    for ref in index.references:
-        if ref.get("type") != "call":
-            continue
-        ref_name = ref.get("name", "")
-        if (
-            ref_name == symbol_name
-            or ref_name.endswith(f".{symbol_name}")
-        ):
-            count += 1
-    return count
-
-
 def suggest_symbols(
     repo: str,
     task: str,

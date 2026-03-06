@@ -270,7 +270,9 @@ def index_folder(
 
             new_refs: list[dict] = []
             for rel_path in files_to_parse:
-                content = current_files[rel_path]
+                content = current_files.get(rel_path)
+                if content is None:
+                    continue  # File in git diff but not in current_files (filtered/deleted)
                 ext = os.path.splitext(rel_path)[1]
                 language = LANGUAGE_EXTENSIONS.get(ext)
                 if not language:
