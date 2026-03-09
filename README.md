@@ -9,16 +9,18 @@ Instead of dumping entire files into context, nexus-symdex parses your codebase 
 - **12 languages**: Python, JavaScript, TypeScript, Go, Rust, Java, PHP, C, C#, Ruby, Kotlin, Swift
 - **Smart symbol extraction**: Captures functions, classes, methods, constants, types, variables, routes, and module preambles -- plus JS/TS assigned functions, arrow functions, CommonJS exports, and prototype assignments
 - **Framework-aware route extraction**: Detects `app.get('/path', handler)`, `router.post(...)`, `app.use(middleware)` patterns as first-class route symbols
-- **Fuzzy and semantic search**: Subsequence matching ("auth" finds "authenticate") plus a built-in programming thesaurus ("auth" also finds "login", "token", "session")
+- **Fuzzy and semantic search**: Subsequence matching ("auth" finds "authenticate") plus a built-in programming thesaurus ("auth" also finds "login", "token", "session"). Inverted name-token index for O(1) candidate narrowing with full-scan fallback for docstring/signature matches
 - **PR review context**: Auto-assemble the minimal context for understanding a code change -- changed symbols, affected callers, dependencies, and related tests
-- **Smart context budgeting**: Fill a token budget with the most relevant symbols + dependencies, with byte-range deduplication to prevent overlap
-- **Scope-aware references**: Callers/callees resolved with file-scope priority (same file > imported file > dotted name > fallback)
+- **Smart context budgeting**: Fill a token budget with the most relevant symbols + dependencies, with bidirectional byte-range deduplication to prevent overlap (evicts child symbols when parent is added, and vice versa)
+- **Scope-aware references**: Callers/callees resolved with file-scope priority (same file > imported file > dotted name > fallback), with `from_symbol` enrichment tracking which function makes each call
 - **Byte-offset retrieval**: O(1) source lookup via stored offsets, no re-parsing
+- **Auto-reindex**: Stale files are automatically re-parsed on access (hash-based detection), no manual reindex needed
 - **Incremental indexing**: Only re-parse changed files (hash-based or git-diff)
 - **Architecture intelligence**: Dead code detection, import graphs, impact analysis, architecture maps
 - **Code evolution (NexusTime)**: Git-powered timeline, complexity metrics, contributor mapping, churn analysis
-- **Pattern-aware scaffolding (NexusForge)**: Convention extraction, pattern detection, AI-assisted code generation
-- **43 tools** for comprehensive code exploration
+- **Pattern-aware scaffolding (NexusForge)**: Convention extraction, pattern detection
+- **Declarative tool registry**: Each tool module exports `TOOL_DEF`; server auto-discovers and registers them (81-line server)
+- **32 tools** for comprehensive code exploration
 
 ## Installation
 
@@ -46,32 +48,28 @@ Add to your MCP client config:
 }
 ```
 
-## Tools
+## Tools (32)
 
-### Indexing
+### Indexing (2)
 
 | Tool | Description |
 |------|-------------|
 | `index_repo` | Index a GitHub repository by URL (fetches via API) |
 | `index_folder` | Index a local folder on disk |
-| `invalidate_cache` | Clear cached index for a repository |
 
-### Exploration
+### Exploration (7)
 
 | Tool | Description |
 |------|-------------|
-| `list_repos` | List all indexed repositories |
 | `get_file_tree` | Get file tree with per-file summaries |
 | `get_file_outline` | Get all symbols in a file (signatures only, no source) |
-| `get_repo_outline` | High-level overview of an entire repo |
 | `get_symbol` | Get a single symbol by ID with full source; `include_imports` for file context |
 | `get_symbols` | Batch-get multiple symbols by ID; `include_imports` for file context |
 | `search_symbols` | Fuzzy + semantic search by name, kind, file pattern |
-| `search_text` | Regex search across indexed source files |
-| `search_all_repos` | Search across all indexed repositories |
-| `explain_symbol` | Get symbol with callers, callees, and dependencies |
+| `suggest_symbols` | Natural language task description to relevant symbols |
+| `get_similar_symbols` | Find symbols with similar signatures or structure |
 
-### Architecture Intelligence
+### Architecture Intelligence (8)
 
 | Tool | Description |
 |------|-------------|
@@ -81,42 +79,124 @@ Add to your MCP client config:
 | `get_import_graph` | File-to-file dependency graph (adjacency, DOT, or summary) |
 | `get_architecture_map` | Auto-classify files into layers (API, core, utility, etc.) |
 | `find_dead_code` | Find unreferenced symbols (potential dead code) |
-| `get_change_summary` | Diff current files against stored index |
+| `get_hotspots` | Rank symbols by caller count |
+| `get_type_hierarchy` | Inheritance chain -- parent classes and subclasses |
 
-### Smart Context
+### Change Detection (4)
+
+| Tool | Description |
+|------|-------------|
+| `get_change_summary` | Compare current files against stored index |
+| `diff_since_index` | Show what changed on disk since last indexing |
+| `get_symbol_history` | Change history for a specific symbol across re-indexes |
+| `compare_repos` | Diff the symbol surface between two repositories |
+
+### Smart Context (5)
 
 | Tool | Description |
 |------|-------------|
 | `get_context` | Fill a token budget with the most relevant symbols; optionally include dependencies; auto-deduplicates overlapping byte ranges |
 | `get_review_context` | Assemble minimal context for a PR review: changed symbols + callers + deps + related tests |
-| `learn_from_changes` | Detect code changes and record them to NexusCortex memory for future recall |
+| `learn_from_changes` | Detect code changes and record them to NexusCortex memory |
 | `recall_with_code` | Recall past experiences AND cross-reference with current code symbols |
-| `review_with_history` | PR review context enriched with historical memory about changed files |
+| `review_with_history` | PR review context enriched with historical memory |
 
-### File Watching
-
-| Tool | Description |
-|------|-------------|
-| `watch_folder` | Watch a folder for changes and auto-reindex |
-| `unwatch_folder` | Stop watching a folder |
-| `list_watches` | List active folder watches |
-
-### NexusTime -- Code Evolution
+### Code Evolution -- NexusTime (4)
 
 | Tool | Description |
 |------|-------------|
-| `get_evolution_timeline` | Git-powered change timeline for a symbol or file -- who changed what, when |
+| `get_evolution_timeline` | Git-powered change timeline for a symbol or file |
 | `get_complexity_metrics` | Complexity scoring: line count, nesting depth, cyclomatic complexity, risk level |
 | `get_contributors` | Contributor mapping via `git blame` -- ownership percentages per symbol/file |
-| `get_code_churn` | Change frequency analysis -- commits, lines added/removed, churn score, risk level |
+| `get_code_churn` | Change frequency analysis -- commits, lines added/removed, churn score |
 
-### NexusForge -- Pattern-Aware Scaffolding
+### Pattern Analysis -- NexusForge (2)
 
 | Tool | Description |
 |------|-------------|
 | `extract_conventions` | Analyze naming conventions, structure patterns, code patterns, framework detection |
 | `detect_patterns` | Find recurring structural patterns -- groups of symbols following the same template |
-| `scaffold_symbol` | Generate code scaffold matching conventions; AI-assisted with template fallback |
+
+## Benchmarks
+
+Self-indexed on nexus-symdex itself: 58 Python files, 12,545 lines, 437 symbols, 3,176 references.
+
+### Search Accuracy
+
+| Query | Top-1 Correct | Total Matches |
+|-------|:---:|---:|
+| `IndexStore` | Yes | 3 |
+| `parse_file` | Yes | 2 |
+| `extract_references` | Yes | 3 |
+| `get_context` | Yes | 4 |
+| `refresh_file` | Yes | 2 |
+| `score_symbol` | Yes | 2 |
+
+**Top-1 accuracy: 100%** (6/6 queries return the correct symbol as the first result)
+
+### Token Savings (get_symbol)
+
+| Symbol | Tokens Saved | Timing |
+|--------|----------:|------:|
+| `CodeIndex` (class) | 7,842 | 3.6ms |
+| `parse_file` | 6,707 | 10.5ms |
+| `IndexStore` (class) | 3,569 | 12.4ms |
+| `extract_references` | 3,120 | 10.2ms |
+| `get_context` | 1,025 | 9.9ms |
+| `search_symbols` | 636 | 9.7ms |
+| **Average** | **3,817** | **9.4ms** |
+
+### Whole-Repo Token Savings
+
+| Approach | Tokens | vs Raw File Reading |
+|----------|-------:|--------------------:|
+| Raw file reading (all 58 files) | ~117,600 | baseline |
+| Signatures only (`get_file_outline`) | ~23,261 | **80.2% saved** |
+| Smart context (per query, 4K budget) | ~4,000 | **96.6% saved** |
+| Single symbol retrieval (`get_symbol`) | ~50-280 | **96-99.8% saved** |
+
+### Context Budget Efficiency (get_context)
+
+| Budget | Used | Utilization | Symbols |
+|-------:|-----:|------:|----:|
+| 1,000 | 994 | 99.4% | 6 |
+| 4,000 | 3,994 | 99.9% | 23 |
+| 10,000 | 9,999 | 100.0% | 34 |
+
+### Performance
+
+| Operation | Timing |
+|-----------|-------:|
+| Symbol retrieval (`get_symbol`) | **9.4ms** avg |
+| File outline (`get_file_outline`) | **< 0.5ms** |
+| Architecture map (`get_architecture_map`) | **7.7ms** |
+| Search (`search_symbols`) | **< 5ms** |
+
+### Task-by-Task: NexusSymdex vs Grep + File Reading
+
+| Task | Base (grep/read) | NexusSymdex | Savings |
+|------|------------------:|------------:|--------:|
+| Find a specific function | ~500 tokens | ~49 tokens | **90%** |
+| Who calls `get_context`? | ~800 tokens | ~180 tokens | **78%** |
+| Read `load_index` implementation | ~6,755 tokens | ~280 tokens | **96%** |
+| Find all summarizer classes | ~16 tokens | ~120 tokens | -- |
+| Impact of changing `extract_references` | ~500 tokens | ~450 tokens | -- |
+
+**Key takeaways:**
+- **Targeted lookups** (read a specific function): **90-96% token savings** by avoiding full file reads
+- **Dependency analysis** (callers, impact): comparable tokens but **vastly richer structured data** -- transitive impact analysis is impossible with grep
+- **Signatures-only mode**: ideal for codebase overviews at **80% savings**
+- **Smart context budgeting**: serves the most relevant code for any query at a fixed token cost, with **99.4-100% budget utilization**
+
+### Quality
+
+| Metric | Value |
+|--------|-------|
+| Tests | **501 passed**, 4 skipped, 0 failed |
+| Coverage | **69%** (65% threshold) |
+| Search top-1 accuracy | **100%** |
+| `from_symbol` accuracy | **99%** (call refs attributed to correct enclosing function) |
+| Auto-reindex | Hash-based, transparent to callers |
 
 ## Usage Examples
 
@@ -165,65 +245,32 @@ get_contributors repo="my-project" file_path="src/auth.py"
 get_code_churn repo="my-project" since="3 months ago"
 ```
 
-### Pattern-aware scaffolding (NexusForge)
+### Pattern analysis (NexusForge)
 
 ```
 extract_conventions repo="my-project"
 detect_patterns repo="my-project" kind="function" min_group_size=3
-scaffold_symbol repo="my-project" intent="API endpoint for user deletion" like="routes.py::get_users#function"
 ```
-
-## Benchmarks
-
-### Whole-Repo Token Savings
-
-Tested on nexus-symdex itself (58 Python files, 470KB source, 683 symbols):
-
-| Approach | Tokens | vs Raw File Reading |
-|----------|-------:|--------------------:|
-| Raw file reading (all 58 files) | 117,600 | baseline |
-| All symbols (full source) | 145,416 | -23.7% (includes nested overlap) |
-| Signatures only | 23,261 | **80.2% saved** |
-| Smart context (per query, 4K budget) | ~4,000 | **96.6% saved** |
-
-Coverage: 114.8% line coverage (complete, with nested symbol overlap), 3,492 cross-references (475 imports, 3,017 calls), 58/58 file summaries.
-
-### Task-by-Task: NexusSymdex vs Grep + File Reading
-
-Five real-world code understanding tasks compared head-to-head:
-
-| Task | Base (grep/read) | NexusSymdex | Savings | Notes |
-|------|------------------:|------------:|--------:|-------|
-| Find a specific function | ~500 tokens | ~49 tokens | **90%** | `search_symbols` returns signature + summary directly |
-| Who calls `get_context`? | ~800 tokens | ~180 tokens | **78%** | `get_callers` returns structured caller graph with function attribution |
-| Read `load_index` implementation | ~6,755 tokens | ~280 tokens | **96%** | `get_symbol` extracts exact method vs reading entire 27KB file |
-| Find all summarizer classes | ~16 tokens | ~120 tokens | — | Grep finds names; symdex adds signatures, inheritance, summaries |
-| Impact of changing `extract_references` | ~500 tokens | ~450 tokens | — | Grep finds direct call sites; `get_impact` traces 43 transitively impacted symbols across 2 depth levels — **impossible with grep** |
-
-**Key takeaways:**
-- **Targeted lookups** (read a specific function): **90-96% token savings** by avoiding full file reads
-- **Dependency analysis** (callers, impact): comparable tokens but **vastly richer structured data** — transitive impact analysis is impossible with grep
-- **Signatures-only mode**: ideal for codebase overviews at **80% savings**
-- **Smart context budgeting**: serves the most relevant code for any query at a fixed token cost
 
 ## Architecture
 
 ```
 src/nexus_symdex/
-|-- server.py              # MCP server, tool registration, request routing
+|-- server.py              # MCP server (81 lines) -- auto-discovers tools via registry
 |-- parser/
 |   |-- extractor.py       # tree-sitter AST walking + symbol extraction
 |   |-- languages.py       # Per-language specs (node types, patterns)
-|   |-- references.py      # Import/call reference extraction
+|   |-- references.py      # Import/call reference extraction with from_symbol tracking
 |   |-- symbols.py         # Symbol dataclass
 |   \-- hierarchy.py       # Parent-child symbol tree
 |-- storage/
-|   |-- index_store.py     # Index save/load, byte-offset retrieval, search scoring
+|   |-- index_store.py     # Index save/load, byte-offset retrieval, search scoring, auto-reindex
 |   \-- token_tracker.py   # Token savings tracking
 |-- tools/
+|   |-- __init__.py        # discover_tools() -- declarative tool registry
 |   |-- index_repo.py      # GitHub repo indexing
 |   |-- index_folder.py    # Local folder indexing
-|   |-- get_context.py     # Smart context budgeting with deduplication
+|   |-- get_context.py     # Smart context budgeting with bidirectional deduplication
 |   |-- get_review_context.py  # PR review context assembly
 |   |-- find_dead_code.py  # Unreferenced symbol detection
 |   |-- get_import_graph.py # File dependency graph
@@ -269,8 +316,8 @@ All integration tools gracefully degrade when NexusCortex is unavailable -- they
 ```bash
 git clone https://github.com/morganbarrett/nexus-symdex.git
 cd nexus-symdex
-pip install -e ".[test]"
-pytest
+uv sync --extra test
+uv run pytest
 ```
 
 ## License
