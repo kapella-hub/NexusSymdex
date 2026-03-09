@@ -222,7 +222,7 @@ async def explain_symbol(
     }
 
 
-TOOL_DEF = {
+_TOOL_DEF = {
     "name": "explain_symbol",
     "description": "Get a structured LLM-powered explanation of a symbol: purpose, inputs, output, side effects, and complexity. Falls back to heuristic explanation if no LLM is available.",
     "inputSchema": {

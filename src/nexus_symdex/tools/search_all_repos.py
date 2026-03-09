@@ -112,7 +112,7 @@ def search_all_repos(
     }
 
 
-TOOL_DEF = {
+_TOOL_DEF = {
     "name": "search_all_repos",
     "description": "Search symbols across ALL indexed repositories. Returns combined results sorted by relevance score.",
     "inputSchema": {

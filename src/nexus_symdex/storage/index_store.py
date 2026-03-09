@@ -171,6 +171,7 @@ class CodeIndex:
     git_head: str = ""           # HEAD commit hash at index time (for git repos)
     file_summaries: dict[str, str] = field(default_factory=dict)  # file_path -> summary (populated by #9)
     references: list[dict] = field(default_factory=list)  # Cross-reference data from extract_references
+    repo_root: str = ""  # Absolute path to the repository root on disk (for auto-refresh)
 
     def __post_init__(self):
         self._symbol_index: Optional[dict[str, dict]] = None
@@ -431,6 +432,7 @@ class IndexStore:
         git_head: str = "",
         references: Optional[list[dict]] = None,
         file_summaries: Optional[dict[str, str]] = None,
+        repo_root: str = "",
     ) -> "CodeIndex":
         """Save index and raw files to storage.
 
@@ -444,6 +446,7 @@ class IndexStore:
             file_hashes: Optional precomputed {file_path: sha256} map.
             git_head: Optional HEAD commit hash at index time.
             references: Optional list of cross-reference dicts from extract_references.
+            repo_root: Absolute path to repo root on disk (for auto-refresh).
 
         Returns:
             CodeIndex object.
@@ -466,6 +469,7 @@ class IndexStore:
             git_head=git_head,
             file_summaries=file_summaries or {},
             references=references or [],
+            repo_root=repo_root,
         )
 
         # Save index JSON atomically: write to temp then rename
@@ -537,6 +541,7 @@ class IndexStore:
                 git_head=data.get("git_head", ""),
                 file_summaries=data.get("file_summaries", {}),
                 references=data.get("references", []),
+                repo_root=data.get("repo_root", ""),
             )
         except KeyError:
             return None  # Malformed index data
@@ -569,6 +574,101 @@ class IndexStore:
             source_bytes = f.read(symbol["byte_length"])
 
         return source_bytes.decode("utf-8", errors="replace")
+
+    def refresh_file(self, owner: str, name: str, file_path: str, repo_root: str) -> bool:
+        """Re-parse a single file if it has changed since indexing.
+
+        Compares the file's current content hash against the stored hash.
+        If different, re-parses the file, updates symbols and references
+        in the in-memory index (and cache), and updates the raw content file.
+        Does NOT write the full index JSON to disk (too expensive per-file).
+
+        Args:
+            owner: Repository owner.
+            name: Repository name.
+            file_path: Relative file path within the repo (e.g., 'src/main.py').
+            repo_root: Absolute path to the repository root on disk.
+
+        Returns:
+            True if the file was refreshed, False if unchanged or not found.
+        """
+        from ..parser.extractor import parse_file
+        from ..parser.references import extract_references
+        from ..parser.languages import LANGUAGE_EXTENSIONS
+
+        index = self.load_index(owner, name)
+        if not index:
+            return False
+
+        # Read the current file from disk
+        abs_path = Path(repo_root) / file_path
+        if not abs_path.is_file():
+            return False
+
+        try:
+            content = abs_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return False
+
+        # Compare hashes
+        current_hash = _file_hash(content)
+        stored_hash = index.file_hashes.get(file_path)
+        if stored_hash == current_hash:
+            return False
+
+        # Detect language from extension
+        ext = os.path.splitext(file_path)[1]
+        language = LANGUAGE_EXTENSIONS.get(ext)
+        if not language:
+            return False
+
+        # Parse new symbols and references
+        try:
+            new_symbols = parse_file(content, file_path, language)
+            new_refs = extract_references(content, file_path, language)
+        except Exception:
+            return False
+
+        # Tag each reference with its file
+        for ref in new_refs:
+            ref["file"] = file_path
+
+        # Remove old symbols and refs for this file
+        index.symbols = [s for s in index.symbols if s.get("file") != file_path]
+        index.references = [r for r in index.references if r.get("file") != file_path]
+
+        # Add new symbols (converted to dicts) and refs
+        index.symbols.extend(self._symbol_to_dict(s) for s in new_symbols)
+        index.references.extend(new_refs)
+
+        # Update file hash
+        index.file_hashes[file_path] = current_hash
+
+        # Add file to source_files if not already present
+        if file_path not in index.source_files:
+            index.source_files.append(file_path)
+
+        # Invalidate lazy caches
+        index._symbol_index = None
+        index._symbols_by_file = None
+        index._refs_by_file_type = None
+
+        # Update the raw content file on disk
+        content_dir = self._content_dir(owner, name)
+        dest = self._safe_content_path(content_dir, file_path)
+        if dest:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            with open(dest, "wb") as f:
+                f.write(content.encode("utf-8"))
+
+        # Update the in-memory cache (use current index_path mtime as key)
+        index_path = self._index_path(owner, name)
+        if index_path.exists():
+            path_key = str(index_path)
+            mtime = index_path.stat().st_mtime
+            _cache_put(path_key, mtime, index)
+
+        return True
 
     def detect_changes(
         self,
@@ -694,6 +794,7 @@ class IndexStore:
             git_head=git_head,
             file_summaries=kept_summaries,
             references=all_refs,
+            repo_root=index.repo_root,
         )
 
         # Save atomically
@@ -943,4 +1044,5 @@ class IndexStore:
             "git_head": index.git_head,
             "file_summaries": index.file_summaries,
             "references": index.references,
+            "repo_root": index.repo_root,
         }

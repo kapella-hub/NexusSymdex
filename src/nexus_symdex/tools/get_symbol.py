@@ -6,7 +6,7 @@ import time
 from typing import Optional
 
 from ..storage import IndexStore, record_savings, estimate_savings, cost_avoided as _cost_avoided
-from ._utils import resolve_repo, get_file_imports
+from ._utils import resolve_repo, get_file_imports, maybe_refresh_files
 
 
 def _make_meta(timing_ms: float, **kwargs) -> dict:
@@ -54,6 +54,13 @@ def get_symbol(
 
     if not symbol:
         return {"error": f"Symbol not found: {symbol_id}"}
+
+    # Auto-refresh the file containing this symbol if stale
+    file_for_symbol = symbol.get("file", "")
+    if file_for_symbol:
+        maybe_refresh_files(store, owner, name, [file_for_symbol], index=index)
+        # Re-fetch symbol after potential refresh (byte offsets may have changed)
+        symbol = index.get_symbol(symbol_id) or symbol
 
     # Get source via byte-offset read
     source = store.get_symbol_content(owner, name, symbol_id)
@@ -152,6 +159,16 @@ def get_symbols(
 
     if not index:
         return {"error": f"Repository not indexed: {owner}/{name}"}
+
+    # Auto-refresh files containing the requested symbols
+    files_to_refresh = set()
+    for symbol_id in symbol_ids:
+        sym = index.get_symbol(symbol_id)
+        if sym:
+            files_to_refresh.add(sym.get("file", ""))
+    files_to_refresh.discard("")
+    if files_to_refresh:
+        maybe_refresh_files(store, owner, name, list(files_to_refresh), index=index)
 
     symbols = []
     errors = []

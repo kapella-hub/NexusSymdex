@@ -187,7 +187,7 @@ def list_watches(storage_path: Optional[str] = None) -> dict:
     }
 
 
-TOOL_DEFS = [
+_TOOL_DEFS = [
     {
         "name": "watch_folder",
         "description": "Start watching a local folder for file changes and automatically trigger incremental reindex. Requires the folder to be indexed first.",

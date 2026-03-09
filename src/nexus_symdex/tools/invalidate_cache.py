@@ -48,7 +48,7 @@ def invalidate_cache(
         }
 
 
-TOOL_DEF = {
+_TOOL_DEF = {
     "name": "invalidate_cache",
     "description": "Delete the index and cached files for a repository. Forces a full re-index on next index_repo or index_folder call.",
     "inputSchema": {

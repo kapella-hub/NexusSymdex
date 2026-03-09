@@ -12,15 +12,13 @@ async def test_server_lists_all_tools():
     """Test that server lists all 19 tools."""
     tools = await list_tools()
 
-    assert len(tools) == 43
+    assert len(tools) == 32
 
     names = {t.name for t in tools}
     expected = {
-        "index_repo", "index_folder", "list_repos", "get_file_tree",
+        "index_repo", "index_folder", "get_file_tree",
         "get_file_outline", "get_symbol", "get_symbols", "search_symbols",
-        "invalidate_cache", "search_text", "get_repo_outline",
-        "search_all_repos", "get_context", "explain_symbol",
-        "watch_folder", "unwatch_folder", "list_watches",
+        "get_context",
         "get_callers", "get_dependencies",
         "find_dead_code", "get_import_graph", "get_impact",
         "get_change_summary", "get_architecture_map",
@@ -28,10 +26,10 @@ async def test_server_lists_all_tools():
         "learn_from_changes", "recall_with_code", "review_with_history",
         "diff_since_index", "get_symbol_history", "suggest_symbols",
         "get_hotspots", "get_type_hierarchy", "get_similar_symbols",
-        "compare_repos", "export_index",
+        "compare_repos",
         "get_evolution_timeline", "get_complexity_metrics",
         "get_contributors", "get_code_churn",
-        "extract_conventions", "detect_patterns", "scaffold_symbol",
+        "extract_conventions", "detect_patterns",
     }
     assert names == expected
 

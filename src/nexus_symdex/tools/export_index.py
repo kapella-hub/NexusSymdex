@@ -210,7 +210,7 @@ def _symbol_to_json_entry(
     return entry
 
 
-TOOL_DEF = {
+_TOOL_DEF = {
     "name": "export_index",
     "description": "Export the index as structured markdown or JSON for direct context inclusion. Organized by file with symbol hierarchy, signatures, and summaries.",
     "inputSchema": {

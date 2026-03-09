@@ -82,7 +82,7 @@ def get_repo_outline(
     }
 
 
-TOOL_DEF = {
+_TOOL_DEF = {
     "name": "get_repo_outline",
     "description": "Get a high-level overview of an indexed repository: directories, file counts, language breakdown, symbol counts. Lighter than get_file_tree.",
     "inputSchema": {

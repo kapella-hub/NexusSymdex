@@ -4,7 +4,7 @@ from collections import Counter
 from typing import Optional
 
 from ..parser.symbols import Symbol
-from ..storage import IndexStore
+from ..storage import IndexStore, CodeIndex
 
 
 def resolve_repo(repo: str, storage_path: Optional[str] = None) -> tuple[str, str]:
@@ -20,6 +20,33 @@ def resolve_repo(repo: str, storage_path: Optional[str] = None) -> tuple[str, st
     if not matching:
         raise ValueError(f"Repository not found: {repo}")
     return matching[0]["repo"].split("/", 1)
+
+
+def maybe_refresh_files(
+    store: IndexStore,
+    owner: str,
+    name: str,
+    file_paths: list[str],
+    index: Optional[CodeIndex] = None,
+) -> int:
+    """Refresh stale files in the index. Returns count of refreshed files.
+
+    Uses the repo_root stored in the index to locate files on disk.
+    If repo_root is not set or the directory doesn't exist, returns 0.
+    """
+    if index is None:
+        index = store.load_index(owner, name)
+    if not index or not index.repo_root:
+        return 0
+    from pathlib import Path
+    root = Path(index.repo_root)
+    if not root.is_dir():
+        return 0
+    refreshed = 0
+    for fp in file_paths:
+        if store.refresh_file(owner, name, fp, index.repo_root):
+            refreshed += 1
+    return refreshed
 
 
 def resolve_call_targets(index, call_name: str, caller_file: str) -> list[str]:

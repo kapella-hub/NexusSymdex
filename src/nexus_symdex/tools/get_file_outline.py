@@ -6,7 +6,7 @@ from typing import Optional
 
 from ..storage import IndexStore, record_savings, estimate_savings, cost_avoided
 from ..parser import build_symbol_tree
-from ._utils import resolve_repo
+from ._utils import resolve_repo, maybe_refresh_files
 
 
 def get_file_outline(
@@ -37,7 +37,10 @@ def get_file_outline(
     
     if not index:
         return {"error": f"Repository not indexed: {owner}/{name}"}
-    
+
+    # Auto-refresh the requested file if stale
+    maybe_refresh_files(store, owner, name, [file_path], index=index)
+
     # Filter symbols to this file
     file_symbols = [s for s in index.symbols if s.get("file") == file_path]
     

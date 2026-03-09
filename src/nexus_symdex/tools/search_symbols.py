@@ -30,6 +30,11 @@ def search_symbols(
 
     Returns:
         Dict with search results and _meta envelope.
+
+    Note:
+        Results are based on the last full index and may be stale if files
+        have been modified since indexing. Use get_file_outline or get_symbol
+        for auto-refreshed results on specific files.
     """
     start = time.perf_counter()
     max_results = max(1, min(max_results, 100))

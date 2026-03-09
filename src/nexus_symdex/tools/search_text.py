@@ -109,7 +109,7 @@ def search_text(
     }
 
 
-TOOL_DEF = {
+_TOOL_DEF = {
     "name": "search_text",
     "description": "Full-text search across indexed file contents. Useful when symbol search misses (e.g., string literals, comments, config values).",
     "inputSchema": {

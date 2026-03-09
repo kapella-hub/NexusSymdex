@@ -365,6 +365,7 @@ def index_folder(
             languages=languages,
             references=all_refs,
             file_summaries=file_summaries,
+            repo_root=str(folder_path),
         )
 
         result = {

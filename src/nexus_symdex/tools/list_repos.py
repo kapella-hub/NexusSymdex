@@ -26,7 +26,7 @@ def list_repos(storage_path: Optional[str] = None) -> dict:
     }
 
 
-TOOL_DEF = {
+_TOOL_DEF = {
     "name": "list_repos",
     "description": "List all indexed repositories.",
     "inputSchema": {

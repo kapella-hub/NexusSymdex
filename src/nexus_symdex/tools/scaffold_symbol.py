@@ -287,7 +287,7 @@ def scaffold_symbol(
     return result
 
 
-TOOL_DEF = {
+_TOOL_DEF = {
     "name": "scaffold_symbol",
     "description": "Generate a code scaffold for a new symbol that matches existing codebase conventions. Uses AI when available (same providers as summarizer), with template-based fallback.",
     "inputSchema": {
