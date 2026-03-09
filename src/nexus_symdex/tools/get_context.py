@@ -130,6 +130,35 @@ def get_context(
                 return True
         return False
 
+    def _evict_contained(file_path: str, start: int, end: int):
+        """Remove already-included symbols whose byte ranges are contained within [start, end)."""
+        nonlocal tokens_used, raw_bytes_total
+        to_remove = []
+        for i, entry in enumerate(symbols_out):
+            if entry["file"] != file_path:
+                continue
+            sym_id = entry["id"]
+            sym_data = index.get_symbol(sym_id)
+            if not sym_data:
+                continue
+            s_offset = sym_data.get("byte_offset", 0)
+            s_length = sym_data.get("byte_length", 0)
+            if s_length > 0 and start <= s_offset and s_offset + s_length <= end:
+                to_remove.append(i)
+        # Remove in reverse order to preserve indices
+        for i in reversed(to_remove):
+            evicted = symbols_out.pop(i)
+            included_ids.discard(evicted["id"])
+            tokens_used -= evicted["estimated_tokens"]
+        # Clean up ranges for this file (rebuild from remaining symbols)
+        if to_remove:
+            included_ranges[file_path] = [
+                (sym_data.get("byte_offset", 0), sym_data.get("byte_offset", 0) + sym_data.get("byte_length", 0))
+                for entry in symbols_out if entry["file"] == file_path
+                for sym_data in [index.get_symbol(entry["id"])]
+                if sym_data
+            ]
+
     # Helper to add a symbol to the output
     def _try_add(sym, tag=None):
         nonlocal tokens_used, raw_bytes_total
@@ -142,6 +171,10 @@ def get_context(
         # Guard against degenerate zero-offset/zero-length symbols being suppressed
         if byte_length > 0 and _is_contained(file_path, byte_offset, byte_offset + byte_length):
             return False
+
+        # Evict already-included symbols that are contained within this one
+        if byte_length > 0:
+            _evict_contained(file_path, byte_offset, byte_offset + byte_length)
 
         if tokens_used + estimated_tokens > budget_tokens:
             return False
