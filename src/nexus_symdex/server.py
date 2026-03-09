@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import inspect
 import json
 import os
 from typing import Optional
@@ -42,7 +43,9 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
     try:
         handler = tool["handler"]
-        arguments["storage_path"] = storage_path
+        sig = inspect.signature(handler)
+        if "storage_path" in sig.parameters:
+            arguments["storage_path"] = storage_path
 
         if tool.get("is_async"):
             result = await handler(**arguments)

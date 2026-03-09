@@ -97,13 +97,6 @@ def resolve_call_targets(index, call_name: str, caller_file: str) -> list[str]:
         if sid and sid not in seen_ids:
             seen_ids.add(sid)
             candidates.append(sym)
-    if call_name != bare_name:
-        for sym in index.get_symbols_by_name(call_name):
-            sid = sym.get("id", "")
-            if sid and sid not in seen_ids:
-                seen_ids.add(sid)
-                candidates.append(sym)
-
     for sym in candidates:
         sym_name = sym.get("name", "")
         sym_qname = sym.get("qualified_name", "")

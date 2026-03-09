@@ -307,8 +307,8 @@ class CodeIndex:
             if score > 0:
                 scored.append((score, sym))
 
-        # If inverted index gave no results, fall back to full scan (semantic matching)
-        if candidates is not None and not scored:
+        # Also scan non-candidate symbols for docstring/signature/summary matches
+        if candidates is not None:
             for i, sym in enumerate(self.symbols):
                 if i in candidates:
                     continue  # already checked
@@ -600,6 +600,9 @@ class IndexStore:
         if not index:
             return False
 
+        # Store ref so callers sharing this cached object see mutations
+        # (load_index returns cached objects, so mutations propagate)
+
         # Read the current file from disk
         abs_path = Path(repo_root) / file_path
         if not abs_path.is_file():
@@ -652,6 +655,8 @@ class IndexStore:
         index._symbol_index = None
         index._symbols_by_file = None
         index._refs_by_file_type = None
+        index._symbols_by_name = None
+        index._name_token_index = None
 
         # Update the raw content file on disk
         content_dir = self._content_dir(owner, name)
