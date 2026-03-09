@@ -243,8 +243,8 @@ def _find_spine(
 ) -> list[str]:
     """Find the longest import chain (spine) through the codebase.
 
-    Uses iterative DFS from every node with no importers (entry points)
-    to avoid stack overflow on large repos.
+    Uses iterative DFS with mutable path (push/pop) to avoid O(branches^depth)
+    memory from copying path lists on each step.
     """
     if not imports:
         return []
@@ -264,21 +264,54 @@ def _find_spine(
     best_path: list[str] = []
 
     for root in roots:
-        # Iterative DFS: stack holds (file, path_so_far)
-        stack: list[tuple[str, list[str]]] = [(root, [root])]
+        path = [root]
+        visited = {root}
+        # Stack holds iterators over neighbors
+        stack = [iter(imports.get(root, set()))]
 
         while stack:
-            current, path = stack.pop()
+            try:
+                neighbor = next(stack[-1])
+            except StopIteration:
+                stack.pop()
+                if path:
+                    visited.discard(path.pop())
+                continue
+
+            if neighbor in visited:
+                continue
+
+            path.append(neighbor)
+            visited.add(neighbor)
 
             if len(path) > len(best_path):
-                best_path = path
+                best_path = list(path)
 
             # Cap search depth to avoid excessive work
             if len(path) >= 50:
+                path.pop()
+                visited.discard(neighbor)
                 continue
 
-            for neighbor in imports.get(current, set()):
-                if neighbor not in path:  # avoid cycles in the path
-                    stack.append((neighbor, path + [neighbor]))
+            stack.append(iter(imports.get(neighbor, set())))
 
     return best_path
+
+
+TOOL_DEF = {
+    "name": "get_architecture_map",
+    "description": "Auto-detect architectural layers in a codebase. Classifies every file into a layer (entry, api/routes, core/service, utility, model/data, test, config) using import-graph topology and path heuristics. Also finds the longest import chain (spine).",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    }
+            },
+            "required": [
+                    "repo"
+            ]
+    },
+    "handler": get_architecture_map,
+}

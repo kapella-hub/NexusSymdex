@@ -110,3 +110,51 @@ def search_all_repos(
             **cost_avoided(tokens_saved, total_saved),
         },
     }
+
+
+TOOL_DEF = {
+    "name": "search_all_repos",
+    "description": "Search symbols across ALL indexed repositories. Returns combined results sorted by relevance score.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "query": {
+                            "type": "string",
+                            "description": "Search query (matches symbol names, signatures, summaries, docstrings)"
+                    },
+                    "kind": {
+                            "type": "string",
+                            "description": "Optional filter by symbol kind",
+                            "enum": [
+                                    "function",
+                                    "class",
+                                    "method",
+                                    "constant",
+                                    "type"
+                            ]
+                    },
+                    "language": {
+                            "type": "string",
+                            "description": "Optional filter by language",
+                            "enum": [
+                                    "python",
+                                    "javascript",
+                                    "typescript",
+                                    "go",
+                                    "rust",
+                                    "java",
+                                    "php"
+                            ]
+                    },
+                    "max_results": {
+                            "type": "integer",
+                            "description": "Maximum number of results to return",
+                            "default": 20
+                    }
+            },
+            "required": [
+                    "query"
+            ]
+    },
+    "handler": search_all_repos,
+}

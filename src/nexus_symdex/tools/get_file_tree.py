@@ -140,3 +140,32 @@ def _dict_to_list(node_dict: dict) -> list[dict]:
             })
     
     return result
+
+
+TOOL_DEF = {
+    "name": "get_file_tree",
+    "description": "Get the file tree of an indexed repository, optionally filtered by path prefix.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "path_prefix": {
+                            "type": "string",
+                            "description": "Optional path prefix to filter (e.g., 'src/utils')",
+                            "default": ""
+                    },
+                    "include_summaries": {
+                            "type": "boolean",
+                            "description": "Include per-file summaries in the tree output",
+                            "default": False
+                    }
+            },
+            "required": [
+                    "repo"
+            ]
+    },
+    "handler": get_file_tree,
+}

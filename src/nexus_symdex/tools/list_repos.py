@@ -24,3 +24,14 @@ def list_repos(storage_path: Optional[str] = None) -> dict:
             "timing_ms": round(elapsed, 1),
         },
     }
+
+
+TOOL_DEF = {
+    "name": "list_repos",
+    "description": "List all indexed repositories.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {}
+    },
+    "handler": list_repos,
+}

@@ -131,3 +131,27 @@ def compare_repos(
             **cost_avoided(tokens_saved, total_saved),
         },
     }
+
+
+TOOL_DEF = {
+    "name": "compare_repos",
+    "description": "Diff the symbol surface between two indexed repositories. Shows symbols only in A, only in B, and modified (same name but different content). Useful for comparing forks, versions, or related projects.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo_a": {
+                            "type": "string",
+                            "description": "First repository identifier"
+                    },
+                    "repo_b": {
+                            "type": "string",
+                            "description": "Second repository identifier"
+                    }
+            },
+            "required": [
+                    "repo_a",
+                    "repo_b"
+            ]
+    },
+    "handler": compare_repos,
+}

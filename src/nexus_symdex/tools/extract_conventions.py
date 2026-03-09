@@ -300,3 +300,34 @@ def extract_conventions(
     result["_meta"] = {"timing_ms": round(elapsed, 1)}
 
     return result
+
+
+TOOL_DEF = {
+    "name": "extract_conventions",
+    "description": "Analyze codebase to extract naming conventions, file organization patterns, common code patterns (decorators, error handling), and framework detection. Fully automated, no AI needed.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "focus": {
+                            "type": "string",
+                            "description": "Focus area",
+                            "enum": [
+                                    "naming",
+                                    "structure",
+                                    "patterns",
+                                    "framework",
+                                    "all"
+                            ],
+                            "default": "all"
+                    }
+            },
+            "required": [
+                    "repo"
+            ]
+    },
+    "handler": extract_conventions,
+}

@@ -178,3 +178,35 @@ def get_evolution_timeline(
         result["last_modified"] = timeline[0]["date"]
 
     return result
+
+
+TOOL_DEF = {
+    "name": "get_evolution_timeline",
+    "description": "Track how a symbol or file has changed over time using git history. Returns a timeline of commits with authors, dates, and messages.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "symbol_id": {
+                            "type": "string",
+                            "description": "Symbol ID to track changes for"
+                    },
+                    "file_path": {
+                            "type": "string",
+                            "description": "File path to track (used if no symbol_id)"
+                    },
+                    "max_entries": {
+                            "type": "integer",
+                            "description": "Max timeline entries (default 20)",
+                            "default": 20
+                    }
+            },
+            "required": [
+                    "repo"
+            ]
+    },
+    "handler": get_evolution_timeline,
+}

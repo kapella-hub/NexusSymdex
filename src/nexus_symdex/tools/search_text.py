@@ -107,3 +107,36 @@ def search_text(
             **cost_avoided(tokens_saved, total_saved),
         },
     }
+
+
+TOOL_DEF = {
+    "name": "search_text",
+    "description": "Full-text search across indexed file contents. Useful when symbol search misses (e.g., string literals, comments, config values).",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "query": {
+                            "type": "string",
+                            "description": "Text to search for (case-insensitive substring match)"
+                    },
+                    "file_pattern": {
+                            "type": "string",
+                            "description": "Optional glob pattern to filter files (e.g., '*.py')"
+                    },
+                    "max_results": {
+                            "type": "integer",
+                            "description": "Maximum number of matching lines to return",
+                            "default": 20
+                    }
+            },
+            "required": [
+                    "repo",
+                    "query"
+            ]
+    },
+    "handler": search_text,
+}

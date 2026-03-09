@@ -208,3 +208,45 @@ def _symbol_to_json_entry(
     if include_summaries and sym.get("summary"):
         entry["summary"] = sym["summary"]
     return entry
+
+
+TOOL_DEF = {
+    "name": "export_index",
+    "description": "Export the index as structured markdown or JSON for direct context inclusion. Organized by file with symbol hierarchy, signatures, and summaries.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "format": {
+                            "type": "string",
+                            "description": "Output format",
+                            "enum": [
+                                    "markdown",
+                                    "json"
+                            ],
+                            "default": "markdown"
+                    },
+                    "include_signatures": {
+                            "type": "boolean",
+                            "description": "Include signatures (default true)",
+                            "default": True
+                    },
+                    "include_summaries": {
+                            "type": "boolean",
+                            "description": "Include summaries (default true)",
+                            "default": True
+                    },
+                    "path_prefix": {
+                            "type": "string",
+                            "description": "Optional path prefix filter"
+                    }
+            },
+            "required": [
+                    "repo"
+            ]
+    },
+    "handler": export_index,
+}

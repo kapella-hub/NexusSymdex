@@ -91,3 +91,27 @@ def get_dependencies(
         "calls": unique_calls,
         "_meta": {"timing_ms": round(elapsed, 1)},
     }
+
+
+TOOL_DEF = {
+    "name": "get_dependencies",
+    "description": "Find what a symbol calls/imports. Shows outgoing calls and file-level imports for understanding a symbol's dependencies.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "symbol_id": {
+                            "type": "string",
+                            "description": "Symbol ID to find dependencies for"
+                    }
+            },
+            "required": [
+                    "repo",
+                    "symbol_id"
+            ]
+    },
+    "handler": get_dependencies,
+}

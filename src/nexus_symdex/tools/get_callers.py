@@ -82,3 +82,27 @@ def get_callers(
         "callers": callers,
         "_meta": {"timing_ms": round(elapsed, 1)},
     }
+
+
+TOOL_DEF = {
+    "name": "get_callers",
+    "description": "Find all call sites that reference a given symbol. Shows where a function/method is called from across the indexed codebase.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "symbol_id": {
+                            "type": "string",
+                            "description": "Symbol ID to find callers for"
+                    }
+            },
+            "required": [
+                    "repo",
+                    "symbol_id"
+            ]
+    },
+    "handler": get_callers,
+}

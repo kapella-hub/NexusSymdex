@@ -142,3 +142,36 @@ def _extract_warnings(history: dict[str, dict]) -> list[str]:
                 f"{filepath}: Previous changes mention '{keyword}' (see history for {basename})"
             )
     return warnings
+
+
+TOOL_DEF = {
+    "name": "review_with_history",
+    "description": "PR review context enriched with historical memory. Combines changed symbols, callers, dependencies, and tests with NexusCortex memories about past changes to the same files.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "changed_files": {
+                            "type": "array",
+                            "items": {
+                                    "type": "string"
+                            },
+                            "description": "List of file paths that changed"
+                    },
+                    "budget_tokens": {
+                            "type": "integer",
+                            "description": "Token budget (default 8000)",
+                            "default": 8000
+                    }
+            },
+            "required": [
+                    "repo",
+                    "changed_files"
+            ]
+    },
+    "is_async": True,
+    "handler": review_with_history,
+}

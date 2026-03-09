@@ -185,3 +185,50 @@ def list_watches(storage_path: Optional[str] = None) -> dict:
         "watches": active,
         "count": len(active),
     }
+
+
+TOOL_DEFS = [
+    {
+        "name": "watch_folder",
+        "description": "Start watching a local folder for file changes and automatically trigger incremental reindex. Requires the folder to be indexed first.",
+        "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                                "path": {
+                                            "type": "string",
+                                            "description": "Path to the local folder to watch"
+                                }
+                    },
+                    "required": [
+                                "path"
+                    ]
+        },
+        "handler": watch_folder,
+    },
+    {
+        "name": "unwatch_folder",
+        "description": "Stop watching a folder for changes.",
+        "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                                "path": {
+                                            "type": "string",
+                                            "description": "Path to the folder to stop watching"
+                                }
+                    },
+                    "required": [
+                                "path"
+                    ]
+        },
+        "handler": unwatch_folder,
+    },
+    {
+        "name": "list_watches",
+        "description": "List all actively watched folders.",
+        "inputSchema": {
+                    "type": "object",
+                    "properties": {}
+        },
+        "handler": list_watches,
+    },
+]

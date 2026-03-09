@@ -46,3 +46,22 @@ def invalidate_cache(
             "success": False,
             "error": f"No index found for {owner}/{name}",
         }
+
+
+TOOL_DEF = {
+    "name": "invalidate_cache",
+    "description": "Delete the index and cached files for a repository. Forces a full re-index on next index_repo or index_folder call.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    }
+            },
+            "required": [
+                    "repo"
+            ]
+    },
+    "handler": invalidate_cache,
+}

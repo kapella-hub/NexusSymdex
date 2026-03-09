@@ -3,7 +3,8 @@
 import pytest
 import json
 
-from nexus_symdex.server import server, list_tools, call_tool, _get_file_imports
+from nexus_symdex.server import server, list_tools, call_tool
+from nexus_symdex.tools._utils import get_file_imports as _get_file_imports
 
 
 @pytest.mark.asyncio

@@ -184,3 +184,22 @@ def _diff_stored_only(
             "total_stored_files": len(stored_hashes),
         },
     }
+
+
+TOOL_DEF = {
+    "name": "diff_since_index",
+    "description": "Show what changed on disk since the last indexing. Compares stored file hashes against current files to detect new, modified, and deleted files.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    }
+            },
+            "required": [
+                    "repo"
+            ]
+    },
+    "handler": diff_since_index,
+}

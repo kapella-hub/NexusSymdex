@@ -365,3 +365,36 @@ def _format_summary(
         "isolated_files": isolated,
         "_meta": meta,
     }
+
+
+TOOL_DEF = {
+    "name": "get_import_graph",
+    "description": "Build a file-to-file import dependency graph. Shows which files import which, identifies hubs (most-imported files) and fans (files importing the most). Supports adjacency list, DOT, and summary formats.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "format": {
+                            "type": "string",
+                            "description": "Output format",
+                            "enum": [
+                                    "adjacency",
+                                    "dot",
+                                    "summary"
+                            ],
+                            "default": "adjacency"
+                    },
+                    "file_path": {
+                            "type": "string",
+                            "description": "Optional: only show graph for this file and its direct neighbors"
+                    }
+            },
+            "required": [
+                    "repo"
+            ]
+    },
+    "handler": get_import_graph,
+}

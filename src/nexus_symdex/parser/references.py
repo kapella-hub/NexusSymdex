@@ -3,6 +3,7 @@
 from tree_sitter_language_pack import get_parser
 
 from .languages import LANGUAGE_REGISTRY, _ensure_plugins_loaded
+from .symbols import make_symbol_id
 
 
 def extract_references(content: str, filename: str, language: str) -> list[dict]:
@@ -27,18 +28,75 @@ def extract_references(content: str, filename: str, language: str) -> list[dict]
     tree = parser.parse(source_bytes)
 
     refs: list[dict] = []
-    _walk_for_references(tree.root_node, source_bytes, language, refs)
+    _walk_for_references(tree.root_node, source_bytes, language, refs,
+                         filename=filename, enclosing_symbol=None)
     return refs
 
 
-def _walk_for_references(node, source_bytes: bytes, language: str, refs: list[dict]):
+def _extract_symbol_name(node, spec, source_bytes: bytes):
+    """Extract symbol name from an AST node (lightweight version for reference tracking)."""
+    # Handle Go type_declaration specially (name is inside type_spec child)
+    if node.type == "type_declaration":
+        for child in node.children:
+            if child.type == "type_spec":
+                name_node = child.child_by_field_name("name")
+                if name_node:
+                    return _node_text(name_node, source_bytes)
+        return None
+
+    # C: function_definition has name inside declarator > function_declarator > declarator
+    if node.type == "function_definition" and spec.ts_language == "c":
+        decl = node.child_by_field_name("declarator")
+        if decl and decl.type == "function_declarator":
+            name_node = decl.child_by_field_name("declarator")
+            if name_node:
+                return _node_text(name_node, source_bytes)
+        return None
+
+    # Kotlin: uses child node types instead of field names
+    if spec.ts_language == "kotlin":
+        for child in node.children:
+            if child.type == "simple_identifier":
+                return _node_text(child, source_bytes)
+        return None
+
+    # Standard field-based name extraction
+    if node.type not in spec.name_fields:
+        return None
+
+    field_name = spec.name_fields[node.type]
+    name_node = node.child_by_field_name(field_name)
+    if name_node:
+        return _node_text(name_node, source_bytes)
+    return None
+
+
+def _walk_for_references(node, source_bytes: bytes, language: str, refs: list[dict],
+                         filename: str = "", enclosing_symbol=None,
+                         enclosing_name: str = ""):
     """Recursively walk AST to find import and call nodes."""
-    _extract_node_references(node, source_bytes, language, refs)
+    spec = LANGUAGE_REGISTRY.get(language)
+    if spec and node.type in spec.symbol_node_types:
+        kind = spec.symbol_node_types[node.type]
+        name = _extract_symbol_name(node, spec, source_bytes)
+        if name:
+            # Build qualified name with parent context (e.g., ClassName.method_name)
+            if enclosing_name and kind in ("function", "method"):
+                qualified_name = f"{enclosing_name}.{name}"
+                kind = "method"
+            else:
+                qualified_name = name
+            enclosing_symbol = make_symbol_id(filename, qualified_name, kind)
+            enclosing_name = qualified_name if kind == "class" else enclosing_name
+
+    _extract_node_references(node, source_bytes, language, refs, from_symbol=enclosing_symbol)
     for child in node.children:
-        _walk_for_references(child, source_bytes, language, refs)
+        _walk_for_references(child, source_bytes, language, refs, filename, enclosing_symbol,
+                             enclosing_name)
 
 
-def _extract_node_references(node, source_bytes: bytes, language: str, refs: list[dict]):
+def _extract_node_references(node, source_bytes: bytes, language: str, refs: list[dict],
+                             from_symbol=None):
     """Extract references from a single AST node based on language."""
     node_type = node.type
     line = node.start_point[0] + 1
@@ -157,7 +215,7 @@ def _extract_node_references(node, source_bytes: bytes, language: str, refs: lis
         func = node.child_by_field_name("function")
         if func:
             name = _node_text(func, source_bytes)
-            refs.append({"type": "call", "name": name, "line": line, "from_symbol": None})
+            refs.append({"type": "call", "name": name, "line": line, "from_symbol": from_symbol})
 
     elif node_type == "call_expression" and language in ("javascript", "typescript", "go", "rust", "c"):
         func = node.child_by_field_name("function")
@@ -173,7 +231,7 @@ def _extract_node_references(node, source_bytes: bytes, language: str, refs: lis
                             refs.append({"type": "import", "name": mod, "line": line, "from_symbol": None})
                             break
             else:
-                refs.append({"type": "call", "name": name, "line": line, "from_symbol": None})
+                refs.append({"type": "call", "name": name, "line": line, "from_symbol": from_symbol})
 
     elif node_type == "method_invocation" and language == "java":
         name_node = node.child_by_field_name("name")
@@ -182,25 +240,25 @@ def _extract_node_references(node, source_bytes: bytes, language: str, refs: lis
             name = _node_text(name_node, source_bytes)
             if obj_node:
                 name = f"{_node_text(obj_node, source_bytes)}.{name}"
-            refs.append({"type": "call", "name": name, "line": line, "from_symbol": None})
+            refs.append({"type": "call", "name": name, "line": line, "from_symbol": from_symbol})
 
     elif node_type == "function_call_expression" and language == "php":
         func = node.child_by_field_name("function")
         if func:
             name = _node_text(func, source_bytes)
-            refs.append({"type": "call", "name": name, "line": line, "from_symbol": None})
+            refs.append({"type": "call", "name": name, "line": line, "from_symbol": from_symbol})
 
     elif node_type == "member_call_expression" and language == "php":
         name_node = node.child_by_field_name("name")
         if name_node:
             name = _node_text(name_node, source_bytes)
-            refs.append({"type": "call", "name": name, "line": line, "from_symbol": None})
+            refs.append({"type": "call", "name": name, "line": line, "from_symbol": from_symbol})
 
     elif node_type == "invocation_expression" and language == "csharp":
         func = node.child_by_field_name("function")
         if func:
             name = _node_text(func, source_bytes)
-            refs.append({"type": "call", "name": name, "line": line, "from_symbol": None})
+            refs.append({"type": "call", "name": name, "line": line, "from_symbol": from_symbol})
 
     elif node_type == "call" and language == "ruby":
         method = node.child_by_field_name("method")
@@ -212,14 +270,14 @@ def _extract_node_references(node, source_bytes: bytes, language: str, refs: lis
                 receiver = node.child_by_field_name("receiver")
                 if receiver:
                     name = f"{_node_text(receiver, source_bytes)}.{name}"
-                refs.append({"type": "call", "name": name, "line": line, "from_symbol": None})
+                refs.append({"type": "call", "name": name, "line": line, "from_symbol": from_symbol})
 
     elif node_type == "call_expression" and language in ("kotlin", "swift"):
         # Kotlin/Swift: first child is the function identifier
         for child in node.children:
             if child.type in ("simple_identifier", "navigation_expression"):
                 name = _node_text(child, source_bytes)
-                refs.append({"type": "call", "name": name, "line": line, "from_symbol": None})
+                refs.append({"type": "call", "name": name, "line": line, "from_symbol": from_symbol})
                 break
 
 

@@ -104,3 +104,60 @@ def search_symbols(
             **cost_avoided(tokens_saved, total_saved),
         },
     }
+
+
+TOOL_DEF = {
+    "name": "search_symbols",
+    "description": "Search for symbols matching a query across the entire indexed repository. Returns matches with signatures and summaries.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "query": {
+                            "type": "string",
+                            "description": "Search query (matches symbol names, signatures, summaries, docstrings)"
+                    },
+                    "kind": {
+                            "type": "string",
+                            "description": "Optional filter by symbol kind",
+                            "enum": [
+                                    "function",
+                                    "class",
+                                    "method",
+                                    "constant",
+                                    "type"
+                            ]
+                    },
+                    "file_pattern": {
+                            "type": "string",
+                            "description": "Optional glob pattern to filter files (e.g., 'src/**/*.py')"
+                    },
+                    "language": {
+                            "type": "string",
+                            "description": "Optional filter by language",
+                            "enum": [
+                                    "python",
+                                    "javascript",
+                                    "typescript",
+                                    "go",
+                                    "rust",
+                                    "java",
+                                    "php"
+                            ]
+                    },
+                    "max_results": {
+                            "type": "integer",
+                            "description": "Maximum number of results to return",
+                            "default": 10
+                    }
+            },
+            "required": [
+                    "repo",
+                    "query"
+            ]
+    },
+    "handler": search_symbols,
+}

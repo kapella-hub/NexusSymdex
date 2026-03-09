@@ -130,3 +130,27 @@ def find_dead_code(
         "include_tests": include_tests,
         "_meta": {"timing_ms": round(elapsed, 1)},
     }
+
+
+TOOL_DEF = {
+    "name": "find_dead_code",
+    "description": "Find symbols that are never referenced (called/imported) from anywhere else in the codebase. Detects potential dead code. Excludes common entry points (main, test functions, decorated endpoints) to reduce false positives.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "include_tests": {
+                            "type": "boolean",
+                            "description": "When true, include symbols from test files in results",
+                            "default": False
+                    }
+            },
+            "required": [
+                    "repo"
+            ]
+    },
+    "handler": find_dead_code,
+}

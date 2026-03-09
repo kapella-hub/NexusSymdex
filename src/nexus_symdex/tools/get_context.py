@@ -222,3 +222,47 @@ def get_context(
         "symbols": symbols_out,
         "_meta": meta,
     }
+
+
+TOOL_DEF = {
+    "name": "get_context",
+    "description": "Get the most relevant symbols that fit within a token budget. Returns symbol source code, greedily filling the budget by relevance (if focus query given) or by size (smallest first). With include_deps=true, also includes direct dependencies (callees and imports) of focused symbols.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "budget_tokens": {
+                            "type": "integer",
+                            "description": "Max tokens to include (default 4000)",
+                            "default": 4000
+                    },
+                    "focus": {
+                            "type": "string",
+                            "description": "Optional search query to focus context on"
+                    },
+                    "kind": {
+                            "type": "string",
+                            "description": "Optional filter by symbol kind",
+                            "enum": [
+                                    "function",
+                                    "class",
+                                    "method",
+                                    "constant",
+                                    "type"
+                            ]
+                    },
+                    "include_deps": {
+                            "type": "boolean",
+                            "description": "When true and focus is set, also include direct dependencies (callees and imports) of the focused symbols within the budget",
+                            "default": False
+                    }
+            },
+            "required": [
+                    "repo"
+            ]
+    },
+    "handler": get_context,
+}

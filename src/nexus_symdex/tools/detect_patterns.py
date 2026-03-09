@@ -176,3 +176,36 @@ def detect_patterns(
         "total_patterns": len(patterns),
         "_meta": {"timing_ms": round(elapsed, 1)},
     }
+
+
+TOOL_DEF = {
+    "name": "detect_patterns",
+    "description": "Find recurring structural patterns in the codebase - groups of symbols that follow the same template (e.g., all API endpoints follow the same structure).",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "kind": {
+                            "type": "string",
+                            "description": "Filter by symbol kind (e.g. function, method, class)"
+                    },
+                    "min_group_size": {
+                            "type": "integer",
+                            "description": "Minimum symbols to form a pattern (default 3)",
+                            "default": 3
+                    },
+                    "max_results": {
+                            "type": "integer",
+                            "description": "Max pattern groups (default 10)",
+                            "default": 10
+                    }
+            },
+            "required": [
+                    "repo"
+            ]
+    },
+    "handler": detect_patterns,
+}

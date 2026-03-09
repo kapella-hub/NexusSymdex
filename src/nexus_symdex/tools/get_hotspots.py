@@ -100,3 +100,43 @@ def get_hotspots(
             "total_symbols": len(index.symbols),
         },
     }
+
+
+TOOL_DEF = {
+    "name": "get_hotspots",
+    "description": "Rank symbols by how many callers reference them. Identifies the most-depended-on code \u2014 high-risk areas for changes.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "kind": {
+                            "type": "string",
+                            "description": "Optional filter by symbol kind",
+                            "enum": [
+                                    "function",
+                                    "class",
+                                    "method",
+                                    "constant",
+                                    "type"
+                            ]
+                    },
+                    "min_callers": {
+                            "type": "integer",
+                            "description": "Minimum caller count to include (default 2)",
+                            "default": 2
+                    },
+                    "max_results": {
+                            "type": "integer",
+                            "description": "Maximum results (default 20)",
+                            "default": 20
+                    }
+            },
+            "required": [
+                    "repo"
+            ]
+    },
+    "handler": get_hotspots,
+}

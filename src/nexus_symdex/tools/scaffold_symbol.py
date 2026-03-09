@@ -285,3 +285,39 @@ def scaffold_symbol(
     result["_meta"] = {"timing_ms": round(elapsed, 1)}
 
     return result
+
+
+TOOL_DEF = {
+    "name": "scaffold_symbol",
+    "description": "Generate a code scaffold for a new symbol that matches existing codebase conventions. Uses AI when available (same providers as summarizer), with template-based fallback.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "intent": {
+                            "type": "string",
+                            "description": "What the new symbol should do (e.g. 'API endpoint for user deletion')"
+                    },
+                    "kind": {
+                            "type": "string",
+                            "description": "Symbol kind to generate (function, class, method)"
+                    },
+                    "target_file": {
+                            "type": "string",
+                            "description": "Where the scaffold should go (helps match conventions)"
+                    },
+                    "like": {
+                            "type": "string",
+                            "description": "Symbol ID to use as template"
+                    }
+            },
+            "required": [
+                    "repo",
+                    "intent"
+            ]
+    },
+    "handler": scaffold_symbol,
+}

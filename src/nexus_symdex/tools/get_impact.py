@@ -144,3 +144,32 @@ def _find_caller_symbol_ids(index, symbol_id: str) -> list[str]:
             result.append(containing_id)
 
     return result
+
+
+TOOL_DEF = {
+    "name": "get_impact",
+    "description": "Transitive impact analysis: if you change a symbol, what else might break? BFS through the caller graph up to max_depth levels.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "symbol_id": {
+                            "type": "string",
+                            "description": "Symbol ID to analyse impact for"
+                    },
+                    "max_depth": {
+                            "type": "integer",
+                            "description": "Maximum depth of caller traversal (1-10, default 5)",
+                            "default": 5
+                    }
+            },
+            "required": [
+                    "repo",
+                    "symbol_id"
+            ]
+    },
+    "handler": get_impact,
+}

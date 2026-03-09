@@ -407,3 +407,33 @@ async def index_repo(
     
     except Exception as e:
         return {"success": False, "error": f"Indexing failed: {str(e)}"}
+
+
+TOOL_DEF = {
+    "name": "index_repo",
+    "description": "Index a GitHub repository's source code. Fetches files, parses ASTs, extracts symbols, and saves to local storage.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "url": {
+                            "type": "string",
+                            "description": "GitHub repository URL or owner/repo string"
+                    },
+                    "use_ai_summaries": {
+                            "type": "boolean",
+                            "description": "Use AI to generate symbol summaries (requires ANTHROPIC_API_KEY or GOOGLE_API_KEY). Anthropic takes priority if both are set. When false, uses docstrings or signature fallback.",
+                            "default": True
+                    },
+                    "incremental": {
+                            "type": "boolean",
+                            "description": "When true and an existing index exists, only re-index changed files.",
+                            "default": False
+                    }
+            },
+            "required": [
+                    "url"
+            ]
+    },
+    "is_async": True,
+    "handler": index_repo,
+}

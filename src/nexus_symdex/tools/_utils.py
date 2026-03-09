@@ -62,7 +62,22 @@ def resolve_call_targets(index, call_name: str, caller_file: str) -> list[str]:
     dotted: list[str] = []
     fallback: list[str] = []
 
-    for sym in index.symbols:
+    # Use name-based index for O(1) lookup instead of scanning all symbols
+    seen_ids: set[str] = set()
+    candidates: list[dict] = []
+    for sym in index.get_symbols_by_name(bare_name):
+        sid = sym.get("id", "")
+        if sid and sid not in seen_ids:
+            seen_ids.add(sid)
+            candidates.append(sym)
+    if call_name != bare_name:
+        for sym in index.get_symbols_by_name(call_name):
+            sid = sym.get("id", "")
+            if sid and sid not in seen_ids:
+                seen_ids.add(sid)
+                candidates.append(sym)
+
+    for sym in candidates:
         sym_name = sym.get("name", "")
         sym_qname = sym.get("qualified_name", "")
         sym_file = sym.get("file", "")
@@ -85,6 +100,15 @@ def resolve_call_targets(index, call_name: str, caller_file: str) -> list[str]:
             fallback.append(sid)
 
     return same_file + imported + dotted + fallback
+
+
+def get_file_imports(index, file_path: str) -> list[dict]:
+    """Get import references for a file."""
+    return [
+        {"name": ref["name"], "line": ref["line"]}
+        for ref in index.references
+        if ref.get("type") == "import" and ref.get("file") == file_path
+    ]
 
 
 def generate_file_summaries(symbols: list[Symbol]) -> dict[str, str]:

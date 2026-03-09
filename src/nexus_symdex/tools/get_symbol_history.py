@@ -95,3 +95,27 @@ def get_symbol_history(
         "change_count": len(enriched),
         "_meta": {"timing_ms": round(elapsed, 1)},
     }
+
+
+TOOL_DEF = {
+    "name": "get_symbol_history",
+    "description": "Get the change history for a specific symbol across re-indexes. Shows when the symbol's content hash or signature changed.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "symbol_id": {
+                            "type": "string",
+                            "description": "Symbol ID to get history for"
+                    }
+            },
+            "required": [
+                    "repo",
+                    "symbol_id"
+            ]
+    },
+    "handler": get_symbol_history,
+}

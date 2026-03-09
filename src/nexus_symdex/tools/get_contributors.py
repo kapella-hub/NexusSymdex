@@ -181,3 +181,35 @@ def get_contributors(
         "total_lines": total_lines,
         "_meta": {"timing_ms": round(elapsed, 1)},
     }
+
+
+TOOL_DEF = {
+    "name": "get_contributors",
+    "description": "Map contributors to a file or symbol using git blame. Shows who owns each area of the codebase with line counts and ownership percentages.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "file_path": {
+                            "type": "string",
+                            "description": "File to analyze"
+                    },
+                    "symbol_id": {
+                            "type": "string",
+                            "description": "Symbol to analyze"
+                    },
+                    "max_results": {
+                            "type": "integer",
+                            "description": "Max contributor results (default 20)",
+                            "default": 20
+                    }
+            },
+            "required": [
+                    "repo"
+            ]
+    },
+    "handler": get_contributors,
+}

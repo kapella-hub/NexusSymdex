@@ -183,3 +183,45 @@ async def recall_with_code(
         result["_meta"]["cortex_error"] = cortex_error
 
     return result
+
+
+TOOL_DEF = {
+    "name": "recall_with_code",
+    "description": "Recall memories from NexusCortex and cross-reference with current code symbols. Combines historical context with live code intelligence for richer task context.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "task": {
+                            "type": "string",
+                            "description": "Description of what you're trying to do"
+                    },
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "tags": {
+                            "type": "array",
+                            "items": {
+                                    "type": "string"
+                            },
+                            "description": "Optional filter tags"
+                    },
+                    "top_k": {
+                            "type": "integer",
+                            "description": "Max memories to recall (default 5)",
+                            "default": 5
+                    },
+                    "budget_tokens": {
+                            "type": "integer",
+                            "description": "Token budget for code context (default 4000)",
+                            "default": 4000
+                    }
+            },
+            "required": [
+                    "task",
+                    "repo"
+            ]
+    },
+    "is_async": True,
+    "handler": recall_with_code,
+}

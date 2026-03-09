@@ -6,7 +6,7 @@ import time
 from typing import Optional
 
 from ..storage import IndexStore, record_savings, estimate_savings, cost_avoided as _cost_avoided
-from ._utils import resolve_repo
+from ._utils import resolve_repo, get_file_imports
 
 
 def _make_meta(timing_ms: float, **kwargs) -> dict:
@@ -21,6 +21,7 @@ def get_symbol(
     symbol_id: str,
     verify: bool = False,
     context_lines: int = 0,
+    include_imports: bool = False,
     storage_path: Optional[str] = None
 ) -> dict:
     """Get full source of a specific symbol.
@@ -117,12 +118,16 @@ def get_symbol(
     if context_after:
         result["context_after"] = context_after
 
+    if include_imports and "error" not in result:
+        result["imports"] = get_file_imports(index, result["file"])
+
     return result
 
 
 def get_symbols(
     repo: str,
     symbol_ids: list[str],
+    include_imports: bool = False,
     storage_path: Optional[str] = None
 ) -> dict:
     """Get full source of multiple symbols.
@@ -195,10 +200,96 @@ def get_symbols(
 
     elapsed = (time.perf_counter() - start) * 1000
 
-    return {
+    result = {
         "symbols": symbols,
         "errors": errors,
         "_meta": _make_meta(elapsed, symbol_count=len(symbols),
                             tokens_saved=tokens_saved, total_tokens_saved=total_saved,
                             **_cost_avoided(tokens_saved, total_saved)),
     }
+
+    if include_imports and "error" not in result:
+        import_seen_files: set[str] = set()
+        all_imports: list[dict] = []
+        for sym in result.get("symbols", []):
+            f = sym["file"]
+            if f not in import_seen_files:
+                import_seen_files.add(f)
+                all_imports.extend(
+                    {"file": f, **imp}
+                    for imp in get_file_imports(index, f)
+                )
+        result["imports"] = all_imports
+
+    return result
+
+
+TOOL_DEFS = [
+    {
+        "name": "get_symbol",
+        "description": "Get the full source code of a specific symbol. Use after identifying relevant symbols via get_file_outline or search_symbols.",
+        "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                                "repo": {
+                                            "type": "string",
+                                            "description": "Repository identifier (owner/repo or just repo name)"
+                                },
+                                "symbol_id": {
+                                            "type": "string",
+                                            "description": "Symbol ID from get_file_outline or search_symbols"
+                                },
+                                "verify": {
+                                            "type": "boolean",
+                                            "description": "Verify content hash matches stored hash (detects source drift)",
+                                            "default": False
+                                },
+                                "context_lines": {
+                                            "type": "integer",
+                                            "description": "Number of lines before/after symbol to include for context",
+                                            "default": 0
+                                },
+                                "include_imports": {
+                                            "type": "boolean",
+                                            "description": "Include file import statements",
+                                            "default": False
+                                }
+                    },
+                    "required": [
+                                "repo",
+                                "symbol_id"
+                    ]
+        },
+        "handler": get_symbol,
+    },
+    {
+        "name": "get_symbols",
+        "description": "Get full source code of multiple symbols in one call. Efficient for loading related symbols.",
+        "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                                "repo": {
+                                            "type": "string",
+                                            "description": "Repository identifier (owner/repo or just repo name)"
+                                },
+                                "symbol_ids": {
+                                            "type": "array",
+                                            "items": {
+                                                        "type": "string"
+                                            },
+                                            "description": "List of symbol IDs to retrieve"
+                                },
+                                "include_imports": {
+                                            "type": "boolean",
+                                            "description": "Include file import statements for each symbol's file",
+                                            "default": False
+                                }
+                    },
+                    "required": [
+                                "repo",
+                                "symbol_ids"
+                    ]
+        },
+        "handler": get_symbols,
+    },
+]

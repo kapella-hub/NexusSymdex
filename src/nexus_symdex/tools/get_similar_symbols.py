@@ -235,3 +235,32 @@ def get_similar_symbols(
         "similar_symbols": results,
         "_meta": {"timing_ms": round(elapsed, 1)},
     }
+
+
+TOOL_DEF = {
+    "name": "get_similar_symbols",
+    "description": "Find symbols with similar signatures or structure. Useful for detecting near-duplicates, finding related implementations, or identifying refactoring candidates.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "symbol_id": {
+                            "type": "string",
+                            "description": "Symbol ID to find similar symbols for"
+                    },
+                    "max_results": {
+                            "type": "integer",
+                            "description": "Maximum results (default 10)",
+                            "default": 10
+                    }
+            },
+            "required": [
+                    "repo",
+                    "symbol_id"
+            ]
+    },
+    "handler": get_similar_symbols,
+}

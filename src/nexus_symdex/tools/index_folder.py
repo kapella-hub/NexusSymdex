@@ -388,3 +388,44 @@ def index_folder(
 
     except Exception as e:
         return {"success": False, "error": f"Indexing failed: {str(e)}"}
+
+
+TOOL_DEF = {
+    "name": "index_folder",
+    "description": "Index a local folder containing source code. Walks directory, parses ASTs, extracts symbols, and saves to local storage. Works with any folder containing supported language files.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "path": {
+                            "type": "string",
+                            "description": "Path to local folder (absolute or relative, supports ~ for home directory)"
+                    },
+                    "use_ai_summaries": {
+                            "type": "boolean",
+                            "description": "Use AI to generate symbol summaries (requires ANTHROPIC_API_KEY or GOOGLE_API_KEY). Anthropic takes priority if both are set. When false, uses docstrings or signature fallback.",
+                            "default": True
+                    },
+                    "extra_ignore_patterns": {
+                            "type": "array",
+                            "items": {
+                                    "type": "string"
+                            },
+                            "description": "Additional gitignore-style patterns to exclude from indexing"
+                    },
+                    "follow_symlinks": {
+                            "type": "boolean",
+                            "description": "Whether to follow symlinks. Default false for security.",
+                            "default": False
+                    },
+                    "incremental": {
+                            "type": "boolean",
+                            "description": "When true and an existing index exists, only re-index changed files.",
+                            "default": False
+                    }
+            },
+            "required": [
+                    "path"
+            ]
+    },
+    "handler": index_folder,
+}

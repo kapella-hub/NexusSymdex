@@ -200,3 +200,32 @@ def suggest_symbols(
             **cost_avoided(tokens_saved, total_saved),
         },
     }
+
+
+TOOL_DEF = {
+    "name": "suggest_symbols",
+    "description": "Given a natural language task description, return the most relevant symbols to read or modify. Combines search relevance, file path heuristics, symbol kind weighting, and caller-count importance.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "task": {
+                            "type": "string",
+                            "description": "Natural language task description (e.g., 'add rate limiting to the API')"
+                    },
+                    "max_results": {
+                            "type": "integer",
+                            "description": "Maximum symbols to suggest (default 15)",
+                            "default": 15
+                    }
+            },
+            "required": [
+                    "repo",
+                    "task"
+            ]
+    },
+    "handler": suggest_symbols,
+}

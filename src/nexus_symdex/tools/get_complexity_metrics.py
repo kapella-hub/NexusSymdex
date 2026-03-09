@@ -164,3 +164,49 @@ def get_complexity_metrics(
         "results": results,
         "_meta": {"timing_ms": round(elapsed, 1)},
     }
+
+
+TOOL_DEF = {
+    "name": "get_complexity_metrics",
+    "description": "Compute complexity metrics for symbols: line count, nesting depth, parameter count, and cyclomatic complexity approximation. Identifies high-risk complex code.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "symbol_id": {
+                            "type": "string",
+                            "description": "Specific symbol to analyze"
+                    },
+                    "file_path": {
+                            "type": "string",
+                            "description": "Analyze all symbols in this file"
+                    },
+                    "kind": {
+                            "type": "string",
+                            "description": "Filter by symbol kind (e.g. function, method)"
+                    },
+                    "sort_by": {
+                            "type": "string",
+                            "description": "Sort field",
+                            "enum": [
+                                    "complexity",
+                                    "lines",
+                                    "nesting"
+                            ],
+                            "default": "complexity"
+                    },
+                    "max_results": {
+                            "type": "integer",
+                            "description": "Max results (default 20)",
+                            "default": 20
+                    }
+            },
+            "required": [
+                    "repo"
+            ]
+    },
+    "handler": get_complexity_metrics,
+}

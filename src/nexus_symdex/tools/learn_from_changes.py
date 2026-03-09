@@ -139,3 +139,31 @@ def _build_tags(changes: dict) -> list[str]:
                 tags.add(kind)
 
     return sorted(tags)
+
+
+TOOL_DEF = {
+    "name": "learn_from_changes",
+    "description": "Record code changes to NexusCortex memory. Detects current changes vs stored index and learns the action/outcome for future recall. Requires NexusCortex to be running.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "path": {
+                            "type": "string",
+                            "description": "Local folder path for change detection"
+                    },
+                    "message": {
+                            "type": "string",
+                            "description": "Optional description of what changed and why"
+                    }
+            },
+            "required": [
+                    "repo"
+            ]
+    },
+    "is_async": True,
+    "handler": learn_from_changes,
+}

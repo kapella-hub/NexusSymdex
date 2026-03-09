@@ -180,3 +180,35 @@ def get_review_context(
             "test_symbols": len(result_tests),
         },
     }
+
+
+TOOL_DEF = {
+    "name": "get_review_context",
+    "description": "Assemble minimal context for reviewing code changes. Given a list of changed files, finds the changed symbols, their callers (affected code), their dependencies, and related test files. Packs everything into a token budget with priority ordering. Perfect for PR reviews.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "changed_files": {
+                            "type": "array",
+                            "items": {
+                                    "type": "string"
+                            },
+                            "description": "List of file paths that changed (relative to repo root)"
+                    },
+                    "budget_tokens": {
+                            "type": "integer",
+                            "description": "Max tokens for context (default 8000)",
+                            "default": 8000
+                    }
+            },
+            "required": [
+                    "repo",
+                    "changed_files"
+            ]
+    },
+    "handler": get_review_context,
+}

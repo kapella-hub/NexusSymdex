@@ -157,3 +157,31 @@ def get_code_churn(
         },
         "_meta": {"timing_ms": round(elapsed, 1)},
     }
+
+
+TOOL_DEF = {
+    "name": "get_code_churn",
+    "description": "Identify files with the highest change frequency (churn). High churn combined with high complexity indicates technical debt hotspots.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "since": {
+                            "type": "string",
+                            "description": "Date filter (e.g. '2025-01-01' or '3 months ago')"
+                    },
+                    "max_results": {
+                            "type": "integer",
+                            "description": "Max results (default 20)",
+                            "default": 20
+                    }
+            },
+            "required": [
+                    "repo"
+            ]
+    },
+    "handler": get_code_churn,
+}

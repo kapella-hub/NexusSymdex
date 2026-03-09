@@ -220,3 +220,28 @@ async def explain_symbol(
             "provider": provider,
         },
     }
+
+
+TOOL_DEF = {
+    "name": "explain_symbol",
+    "description": "Get a structured LLM-powered explanation of a symbol: purpose, inputs, output, side effects, and complexity. Falls back to heuristic explanation if no LLM is available.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "symbol_id": {
+                            "type": "string",
+                            "description": "Symbol ID from get_file_outline or search_symbols"
+                    }
+            },
+            "required": [
+                    "repo",
+                    "symbol_id"
+            ]
+    },
+    "is_async": True,
+    "handler": explain_symbol,
+}

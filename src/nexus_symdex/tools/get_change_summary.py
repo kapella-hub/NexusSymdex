@@ -255,3 +255,26 @@ def _symbol_summary(sym: dict, file_path: str) -> dict:
         "file": file_path,
         "line": sym.get("line", 0),
     }
+
+
+TOOL_DEF = {
+    "name": "get_change_summary",
+    "description": "Compare current file contents against the stored index to show what symbols changed, were added, or were removed since the last index. Requires a local path for the repo.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "path": {
+                            "type": "string",
+                            "description": "Optional path to local folder with current files (required for local repos if not auto-detectable)"
+                    }
+            },
+            "required": [
+                    "repo"
+            ]
+    },
+    "handler": get_change_summary,
+}

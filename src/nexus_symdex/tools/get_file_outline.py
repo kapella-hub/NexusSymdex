@@ -127,3 +127,27 @@ def _node_to_dict(node) -> dict:
         result["children"] = [_node_to_dict(c) for c in node.children]
     
     return result
+
+
+TOOL_DEF = {
+    "name": "get_file_outline",
+    "description": "Get all symbols (functions, classes, methods) in a file with signatures and summaries.",
+    "inputSchema": {
+            "type": "object",
+            "properties": {
+                    "repo": {
+                            "type": "string",
+                            "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "file_path": {
+                            "type": "string",
+                            "description": "Path to the file within the repository (e.g., 'src/main.py')"
+                    }
+            },
+            "required": [
+                    "repo",
+                    "file_path"
+            ]
+    },
+    "handler": get_file_outline,
+}

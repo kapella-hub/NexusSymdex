@@ -176,6 +176,8 @@ class CodeIndex:
         self._symbol_index: Optional[dict[str, dict]] = None
         self._symbols_by_file: Optional[dict[str, list[dict]]] = None
         self._refs_by_file_type: Optional[dict[tuple[str, str], list[dict]]] = None
+        self._symbols_by_name: Optional[dict[str, list[dict]]] = None
+        self._name_token_index: Optional[dict[str, list[int]]] = None
 
     def _build_symbol_index(self) -> dict[str, dict]:
         """Build id -> symbol dict for O(1) lookup."""
@@ -235,25 +237,88 @@ class CodeIndex:
             self._refs_by_file_type = self._build_refs_by_file_type()
         return self._refs_by_file_type.get((file_path, ref_type), [])
 
+    def _build_symbols_by_name(self) -> dict[str, list[dict]]:
+        """Build name -> symbols dict for O(1) name lookup."""
+        by_name: dict[str, list[dict]] = {}
+        for sym in self.symbols:
+            name = sym.get("name", "")
+            by_name.setdefault(name, []).append(sym)
+        return by_name
+
+    def get_symbols_by_name(self, name: str) -> list[dict]:
+        """Get all symbols with a given name (cached)."""
+        if self._symbols_by_name is None:
+            self._symbols_by_name = self._build_symbols_by_name()
+        return self._symbols_by_name.get(name, [])
+
+    def _build_name_token_index(self) -> dict[str, list[int]]:
+        """Map lowercase tokens from symbol names to symbol indices."""
+        import re as _re
+        idx: dict[str, list[int]] = {}
+        for i, sym in enumerate(self.symbols):
+            name = sym.get("name", "").lower()
+            tokens: set[str] = set()
+            for part in name.replace(".", "_").split("_"):
+                if part:
+                    tokens.add(part)
+                    for sub in _re.findall(r'[a-z]+|[A-Z][a-z]*', part):
+                        tokens.add(sub.lower())
+            for token in tokens:
+                idx.setdefault(token, []).append(i)
+        return idx
+
+    def _get_candidate_indices(self, query_words: set[str]) -> Optional[set[int]]:
+        """Get candidate symbol indices matching any query word. Returns None for full scan fallback."""
+        if self._name_token_index is None:
+            self._name_token_index = self._build_name_token_index()
+
+        candidates: set[int] = set()
+        for word in query_words:
+            indices = self._name_token_index.get(word, [])
+            candidates.update(indices)
+
+        return candidates if candidates else None
+
     def search(self, query: str, kind: Optional[str] = None, file_pattern: Optional[str] = None) -> list[dict]:
-        """Search symbols with weighted scoring."""
+        """Search symbols with weighted scoring.
+
+        Uses an inverted name-token index to narrow candidates before scoring,
+        falling back to a full scan when the index yields no results.
+        """
         query_lower = query.lower()
         query_words = set(query_lower.split())
 
+        # Try narrowing via inverted index first
+        candidates = self._get_candidate_indices(query_words)
+
         scored = []
-        for sym in self.symbols:
-            # Apply filters
+        symbols_to_check = (
+            [(i, self.symbols[i]) for i in candidates] if candidates
+            else enumerate(self.symbols)
+        )
+
+        for _, sym in symbols_to_check:
             if kind and sym.get("kind") != kind:
                 continue
             if file_pattern and not self._match_pattern(sym.get("file", ""), file_pattern):
                 continue
-
-            # Score symbol
             score = self._score_symbol(sym, query_lower, query_words)
             if score > 0:
                 scored.append((score, sym))
 
-        # Sort by score descending
+        # If inverted index gave no results, fall back to full scan (semantic matching)
+        if candidates is not None and not scored:
+            for i, sym in enumerate(self.symbols):
+                if i in candidates:
+                    continue  # already checked
+                if kind and sym.get("kind") != kind:
+                    continue
+                if file_pattern and not self._match_pattern(sym.get("file", ""), file_pattern):
+                    continue
+                score = self._score_symbol(sym, query_lower, query_words)
+                if score > 0:
+                    scored.append((score, sym))
+
         scored.sort(key=lambda x: x[0], reverse=True)
         return [sym for _, sym in scored]
 
