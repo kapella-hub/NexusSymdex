@@ -45,6 +45,34 @@ class TestCortexClient:
             assert result.get("status") == "disabled"
 
 
+class TestGetCortexClient:
+    """Test the shared singleton factory."""
+
+    def test_returns_same_instance(self):
+        """get_cortex_client returns the same instance on repeated calls."""
+        import nexus_symdex.cortex.client as mod
+        # Reset singleton for test isolation
+        mod._shared_client = None
+        try:
+            a = mod.get_cortex_client()
+            b = mod.get_cortex_client()
+            assert a is b
+        finally:
+            mod._shared_client = None
+
+    def test_reads_env_at_call_time(self):
+        """Client picks up NEXUS_CORTEX_URL set after import."""
+        import nexus_symdex.cortex.client as mod
+        mod._shared_client = None
+        try:
+            with patch.dict("os.environ", {"NEXUS_CORTEX_URL": "http://localhost:9999"}):
+                client = mod.get_cortex_client()
+                assert client.is_available
+                assert "9999" in client._base_url
+        finally:
+            mod._shared_client = None
+
+
 class TestLearnFromChanges:
     """Test learn_from_changes tool."""
 
@@ -76,20 +104,19 @@ class TestRecallWithCode:
         )
 
         from nexus_symdex.tools.recall_with_code import recall_with_code
-        with patch.dict("os.environ", {"NEXUS_CORTEX_URL": ""}):
-            # Force a fresh client instance so NEXUS_CORTEX_URL is empty
-            import nexus_symdex.tools.recall_with_code as rwc_mod
-            original_cortex = rwc_mod._cortex
-            from nexus_symdex.cortex.client import CortexClient
-            rwc_mod._cortex = CortexClient()
-            try:
+        import nexus_symdex.cortex.client as cortex_mod
+        original = cortex_mod._shared_client
+        cortex_mod._shared_client = None
+        try:
+            with patch.dict("os.environ", {"NEXUS_CORTEX_URL": ""}):
+                cortex_mod._shared_client = None
                 result = await recall_with_code(
                     task="fix authentication",
                     repo="test/test-repo",
                     storage_path=str(tmp_path),
                 )
-            finally:
-                rwc_mod._cortex = original_cortex
+        finally:
+            cortex_mod._shared_client = original
 
         assert "error" not in result
         assert "code_context" in result
@@ -117,20 +144,19 @@ class TestReviewWithHistory:
         )
 
         from nexus_symdex.tools.review_with_history import review_with_history
-        with patch.dict("os.environ", {"NEXUS_CORTEX_URL": ""}):
-            # Force a fresh client instance so NEXUS_CORTEX_URL is empty
-            import nexus_symdex.tools.review_with_history as rwh_mod
-            original_cortex = rwh_mod._cortex
-            from nexus_symdex.cortex.client import CortexClient
-            rwh_mod._cortex = CortexClient()
-            try:
+        import nexus_symdex.cortex.client as cortex_mod
+        original = cortex_mod._shared_client
+        cortex_mod._shared_client = None
+        try:
+            with patch.dict("os.environ", {"NEXUS_CORTEX_URL": ""}):
+                cortex_mod._shared_client = None
                 result = await review_with_history(
                     repo="test/test-repo",
                     changed_files=["app.py"],
                     storage_path=str(tmp_path),
                 )
-            finally:
-                rwh_mod._cortex = original_cortex
+        finally:
+            cortex_mod._shared_client = original
 
         assert "error" not in result
         assert "review" in result

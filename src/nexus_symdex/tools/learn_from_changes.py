@@ -3,11 +3,8 @@
 import time
 from typing import Optional
 
-from ..cortex import CortexClient
+from ..cortex import get_cortex_client
 from .get_change_summary import get_change_summary
-
-# Module-level client instance; reads NEXUS_CORTEX_URL from env at import time.
-_cortex = CortexClient()
 
 
 async def learn_from_changes(
@@ -60,14 +57,15 @@ async def learn_from_changes(
     tags = _build_tags(changes)
 
     # Fire learn + stream in sequence (both are cheap HTTP calls)
-    learn_result = await _cortex.learn(
+    cortex = get_cortex_client()
+    learn_result = await cortex.learn(
         action=action,
         outcome=outcome,
         tags=tags,
         domain=domain,
     )
 
-    stream_result = await _cortex.stream(
+    stream_result = await cortex.stream(
         source="nexus-symdex/learn_from_changes",
         payload={
             "repo": domain,

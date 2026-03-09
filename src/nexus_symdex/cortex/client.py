@@ -1,9 +1,13 @@
 """Async HTTP client wrapper for NexusCortex Memory-as-a-Service."""
 
+import atexit
+import logging
 import os
 from typing import Any, Optional
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 _DISABLED_RESPONSE = {
@@ -142,3 +146,36 @@ class CortexClient:
         if self._client is not None:
             await self._client.aclose()
             self._client = None
+
+
+# ---------------------------------------------------------------------------
+# Shared singleton with lazy initialization
+# ---------------------------------------------------------------------------
+_shared_client: Optional["CortexClient"] = None
+
+
+def get_cortex_client() -> "CortexClient":
+    """Return a shared CortexClient, creating it on first call.
+
+    Reads ``NEXUS_CORTEX_URL`` at call time (not import time), so env
+    changes between import and first use are picked up.
+    """
+    global _shared_client
+    if _shared_client is None:
+        _shared_client = CortexClient()
+
+        # Best-effort cleanup on interpreter shutdown
+        def _cleanup():
+            if _shared_client and _shared_client._client is not None:
+                try:
+                    import asyncio
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        loop.create_task(_shared_client.close())
+                    else:
+                        loop.run_until_complete(_shared_client.close())
+                except Exception:
+                    pass
+
+        atexit.register(_cleanup)
+    return _shared_client

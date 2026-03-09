@@ -5,10 +5,8 @@ import time
 from collections import Counter
 from typing import Optional
 
-from ..cortex import CortexClient
+from ..cortex import get_cortex_client
 from .get_context import get_context
-
-_cortex = CortexClient()
 
 # Words shorter than this are ignored when extracting keywords from memories.
 _MIN_KEYWORD_LEN = 4
@@ -99,14 +97,15 @@ async def recall_with_code(
     # ------------------------------------------------------------------
     # 1. Recall from NexusCortex
     # ------------------------------------------------------------------
-    cortex_available = _cortex.is_available
+    cortex = get_cortex_client()
+    cortex_available = cortex.is_available
     context_block = ""
     source_count = 0
     memory_score = 0.0
     cortex_error: Optional[str] = None
 
     if cortex_available:
-        recall_result = await _cortex.recall(task, tags=tags, top_k=top_k)
+        recall_result = await cortex.recall(task, tags=tags, top_k=top_k)
 
         if "error" in recall_result:
             cortex_error = recall_result["error"]

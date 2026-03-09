@@ -1,16 +1,20 @@
 """PR review context enriched with historical memory from NexusCortex."""
 
 import asyncio
+import logging
 import os
 import re
 import time
 from typing import Optional
 
-from ..cortex import CortexClient
+from ..cortex import get_cortex_client
 from .get_review_context import get_review_context
 from .get_architecture_map import get_architecture_map
 
-_cortex = CortexClient()
+logger = logging.getLogger(__name__)
+
+# Total timeout (seconds) for all parallel per-file cortex recalls.
+_RECALL_TIMEOUT = 10.0
 
 _WARNING_PATTERN = re.compile(
     r"\b(regression|bug|broke|failed|revert)\b",
@@ -47,9 +51,10 @@ async def review_with_history(
     if "error" in review:
         return review
 
-    cortex_available = _cortex.is_available
+    cortex = get_cortex_client()
+    cortex_available = cortex.is_available
 
-    # 2. Recall historical context per file (parallel)
+    # 2. Recall historical context per file (parallel, with timeout)
     history: dict[str, dict] = {}
     if cortex_available:
         repo_name = review.get("repo", repo).split("/")[-1]
@@ -57,7 +62,7 @@ async def review_with_history(
         async def _recall_file(filepath: str) -> tuple[str, dict]:
             basename = os.path.basename(filepath)
             task = f"Previous changes to {basename} in {repo_name}"
-            result = await _cortex.recall(
+            result = await cortex.recall(
                 task=task,
                 tags=[basename, repo_name],
                 top_k=3,
@@ -69,12 +74,21 @@ async def review_with_history(
                 "has_history": has_history,
             }
 
-        recall_results = await asyncio.gather(
-            *[_recall_file(f) for f in changed_files],
-            return_exceptions=True,
-        )
+        try:
+            recall_results = await asyncio.wait_for(
+                asyncio.gather(
+                    *[_recall_file(f) for f in changed_files],
+                    return_exceptions=True,
+                ),
+                timeout=_RECALL_TIMEOUT,
+            )
+        except asyncio.TimeoutError:
+            logger.warning("Cortex parallel recalls timed out after %.1fs", _RECALL_TIMEOUT)
+            recall_results = []
+
         for item in recall_results:
             if isinstance(item, Exception):
+                logger.warning("Cortex recall failed for a file: %s", item)
                 continue
             filepath, file_history = item
             history[filepath] = file_history
@@ -82,15 +96,19 @@ async def review_with_history(
         for f in changed_files:
             history[f] = {"context_block": "", "has_history": False}
 
-    # 3. Fire-and-forget architecture snapshot to Cortex
+    # 3. Stream architecture snapshot to Cortex
     if cortex_available:
         try:
             arch_map = get_architecture_map(repo, storage_path)
             if "error" not in arch_map:
                 repo_tag = review.get("repo", repo)
-                asyncio.create_task(_stream_architecture(arch_map, repo_tag))
-        except Exception:
-            pass
+                await cortex.stream(
+                    source="nexus-symdex:architecture",
+                    payload=arch_map,
+                    tags=[repo_tag],
+                )
+        except Exception as exc:
+            logger.warning("Failed to stream architecture to Cortex: %s", exc)
 
     # 4. Generate warnings from historical context
     warnings = _extract_warnings(history)
@@ -113,18 +131,6 @@ async def review_with_history(
             "files_with_history": files_with_history,
         },
     }
-
-
-async def _stream_architecture(arch_map: dict, repo_tag: str) -> None:
-    """Stream architecture snapshot to Cortex. Exceptions are silenced."""
-    try:
-        await _cortex.stream(
-            source="nexus-symdex:architecture",
-            payload=arch_map,
-            tags=[repo_tag],
-        )
-    except Exception:
-        pass
 
 
 def _extract_warnings(history: dict[str, dict]) -> list[str]:
