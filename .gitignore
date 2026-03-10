@@ -53,6 +53,9 @@ dmypy.json
 # Benchmark repos (cloned externally)
 benchmarks/repos/
 
+# Environment files (API keys)
+.env
+
 # Claude Code local settings (may contain credentials from allowed commands)
 .claude/
 

@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from benchmarks.context_builders import build_symdex_context, build_raw_context
 from benchmarks.judge import judge_answers
