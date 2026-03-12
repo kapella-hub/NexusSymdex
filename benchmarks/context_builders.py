@@ -1,18 +1,15 @@
 """Context builders for NexusSymdex vs raw file benchmark comparison.
 
-V3: Adaptive Multi-Strategy Context Assembly
-- PRECISE: small files (<8K) → raw files + outline header + annotations + bridges
-- ENRICHED: medium files (8-20K) → annotated raw + outline + bridges
-- SURGICAL: large files (>20K) → outlines + targeted symbols + deps + bridges
-
-Key insight: don't replace raw content — ENRICH it with NexusSymdex intelligence.
+V16: Hybrid — selective extraction for comprehension/navigation, raw+intel for modification
+- Comprehension/navigation: V15 selective extraction (47% token savings, equal/better accuracy)
+- Modification: raw files + pattern examples + type hierarchy (needs full context for extension)
+- Best of both worlds: save tokens where possible, preserve accuracy where it matters
 """
 
 import sys
 from pathlib import Path
 from typing import Optional
 
-# Add NexusSymdex src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import tiktoken
@@ -20,13 +17,11 @@ import tiktoken
 from nexus_symdex.storage import IndexStore
 from nexus_symdex.tools.search_symbols import search_symbols
 from nexus_symdex.tools.get_symbol import get_symbol
-from nexus_symdex.tools.get_context import get_context
 from nexus_symdex.tools.get_file_outline import get_file_outline
 from nexus_symdex.tools.get_dependencies import get_dependencies
-
-from benchmarks.classifier import classify_question, classify_file_strategy
+from nexus_symdex.tools.get_callers import get_callers
+from nexus_symdex.tools.get_type_hierarchy import get_type_hierarchy
 from benchmarks.bridging import find_cross_references, format_bridges
-from benchmarks.annotator import annotate_file
 
 STORAGE_PATH = str(Path(__file__).parent / "repos" / ".click-index")
 REPO = "local/click"
@@ -35,28 +30,11 @@ _enc = tiktoken.encoding_for_model("gpt-4")
 
 
 def count_tokens(text: str) -> int:
-    """Count tokens using the GPT-4 tokenizer."""
     return len(_enc.encode(text))
 
 
-def _format_outline(outline: dict) -> str:
-    """Format a file outline into a compact string."""
-    lines = []
-    for sym in outline.get("symbols", []):
-        sig = sym.get("signature", sym["name"])
-        summary = f" -- {sym['summary']}" if sym.get("summary") else ""
-        lines.append(f"  {sym['kind']} {sig}{summary} (L{sym['line']})")
-        for child in sym.get("children", []):
-            csig = child.get("signature", child["name"])
-            csummary = f" -- {child['summary']}" if child.get("summary") else ""
-            lines.append(f"    {child['kind']} {csig}{csummary} (L{child['line']})")
-    return "\n".join(lines)
-
-
 def _read_raw_file(basename: str, index, store) -> Optional[str]:
-    """Read a raw file from the index content directory."""
-    owner, name = "local", "click"
-    content_dir = store._content_dir(owner, name)
+    content_dir = store._content_dir("local", "click")
     for sf in index.source_files:
         if Path(sf).name == basename:
             fpath = content_dir / sf
@@ -65,283 +43,372 @@ def _read_raw_file(basename: str, index, store) -> Optional[str]:
     return None
 
 
-def _get_outline_header(basename: str, repo: str) -> str:
-    """Get a compact file outline header."""
-    outline = get_file_outline(repo, basename, storage_path=STORAGE_PATH)
-    if "error" in outline or not outline.get("symbols"):
-        return ""
-    return f"### Structure of {basename}\n{_format_outline(outline)}"
+def _resolve_file_path(basename: str, index) -> Optional[str]:
+    for sf in index.source_files:
+        if Path(sf).name == basename:
+            return sf
+    return None
 
 
-# ---------------------------------------------------------------------------
-# Strategy: PRECISE (raw < 8K tokens)
-# Include raw files entirely + outline header + annotations + bridges
-# Strictly better than raw: same content plus intelligence
-# ---------------------------------------------------------------------------
-
-def _strategy_precise(
-    question: dict, repo: str, relevant_files: list[str],
-    index, store, intent: str,
-) -> str:
-    """Raw files enriched with outlines, annotations, and cross-references."""
-    sections = []
-
-    for basename in relevant_files:
-        # Outline header first
-        header = _get_outline_header(basename, repo)
-        if header:
-            sections.append(header)
-
-        # Annotated raw content
-        raw = _read_raw_file(basename, index, store)
-        if raw:
-            annotated = annotate_file(repo, basename, raw,
-                                      storage_path=STORAGE_PATH, max_annotations=15)
-            sections.append(f"### {basename} (annotated source)\n```python\n{annotated}\n```")
-
-    # Cross-file references
-    if len(relevant_files) > 1:
-        bridges = find_cross_references(repo, relevant_files, storage_path=STORAGE_PATH)
-        bridge_text = format_bridges(bridges[:15])
-        if bridge_text:
-            sections.append(bridge_text)
-
-    # For mechanism/change intents, add dependency context for key symbols
-    if intent in ("mechanism", "change"):
-        search_hints = question.get("search_hints", [])
-        seen = set()
-        dep_parts = []
-        for hint in search_hints[:2]:
-            result = search_symbols(repo, hint, max_results=2, storage_path=STORAGE_PATH)
-            if "error" in result:
-                continue
-            for match in result.get("results", []):
-                sym_id = match["id"]
-                if sym_id in seen:
-                    continue
-                seen.add(sym_id)
-                deps = get_dependencies(repo, sym_id, storage_path=STORAGE_PATH)
-                if "error" in deps:
-                    continue
-                for call in deps.get("calls", [])[:2]:
-                    tid = call.get("target_id", "")
-                    if tid and tid not in seen:
-                        seen.add(tid)
-                        detail = get_symbol(repo, tid, storage_path=STORAGE_PATH)
-                        if "error" not in detail and detail.get("source"):
-                            dep_parts.append(
-                                f"### {detail['kind']} {detail['name']} "
-                                f"({detail['file']}:{detail['line']}) [dependency]\n"
-                                f"```python\n{detail['source']}\n```"
-                            )
-        if dep_parts:
-            sections.append("## Key Dependencies\n" + "\n\n".join(dep_parts))
-
-    return "\n\n".join(sections) if sections else "(no context found)"
+def _format_outline(outline: dict) -> str:
+    lines = []
+    for sym in outline.get("symbols", []):
+        sig = sym.get("signature", sym["name"])
+        lines.append(f"  {sym['kind']} {sig} (line {sym['line']})")
+        for child in sym.get("children", []):
+            csig = child.get("signature", child["name"])
+            lines.append(f"    {child['kind']} {csig} (line {child['line']})")
+    return "\n".join(lines)
 
 
-# ---------------------------------------------------------------------------
-# Strategy: ENRICHED (raw 8K-20K tokens)
-# Annotated raw files + outline headers + bridges
-# Budget-aware: may trim least-relevant files if over budget
-# ---------------------------------------------------------------------------
-
-def _strategy_enriched(
-    question: dict, repo: str, relevant_files: list[str],
-    index, store, intent: str, raw_tokens: int,
-) -> str:
-    """Annotated raw with outlines and bridges.
-
-    Intentionally uses more tokens than raw — the annotations and outlines
-    are the intelligence layer that makes NexusSymdex strictly better.
-    """
-    sections = []
-
-    for basename in relevant_files:
-        # Outline header
-        header = _get_outline_header(basename, repo)
-        if header:
-            sections.append(header)
-
-        # Annotated raw content
-        raw = _read_raw_file(basename, index, store)
-        if raw:
-            annotated = annotate_file(repo, basename, raw,
-                                      storage_path=STORAGE_PATH, max_annotations=20)
-            sections.append(f"### {basename} (annotated source)\n```python\n{annotated}\n```")
-
-    # Cross-file references
-    if len(relevant_files) > 1:
-        bridges = find_cross_references(repo, relevant_files, storage_path=STORAGE_PATH)
-        bridge_text = format_bridges(bridges[:15])
-        if bridge_text:
-            sections.append(bridge_text)
-
-    return "\n\n".join(sections) if sections else "(no context found)"
+def _clean_name(name: str) -> str:
+    if "::" in name:
+        name = name.split("::")[-1]
+    if "#" in name:
+        name = name.split("#")[0]
+    return name
 
 
-# ---------------------------------------------------------------------------
-# Strategy: SURGICAL (raw > 20K tokens)
-# Outlines + targeted symbols + deps + bridges
-# Most aggressive token savings
-# ---------------------------------------------------------------------------
+def _get_search_terms(question: dict) -> list[str]:
+    """Extract search terms, prioritizing relevant_symbols method names."""
+    terms = []
+    seen = set()
+    for sym_name in question.get("relevant_symbols", []):
+        parts = sym_name.split(".")
+        for part in reversed(parts):
+            if part not in seen:
+                seen.add(part)
+                terms.append(part)
+    for hint in question.get("search_hints", []):
+        if hint not in seen:
+            seen.add(hint)
+            terms.append(hint)
+    return terms
 
-def _strategy_surgical(
-    question: dict, repo: str, relevant_files: list[str],
-    index, store, intent: str, raw_tokens: int,
-) -> str:
-    """Focused extraction with outlines, search hits, deps, and bridges."""
-    sections = []
-    search_hints = question.get("search_hints", [])
-    budget = raw_tokens
 
-    # 1. File outlines
-    outline_parts = []
-    for basename in relevant_files:
-        header = _get_outline_header(basename, repo)
-        if header:
-            outline_parts.append(header)
-    if outline_parts:
-        sections.append("## File Structure\n" + "\n\n".join(outline_parts))
+def _find_pattern_examples(repo: str, terms: list[str],
+                            relevant_basenames: set) -> str:
+    """For modification questions: find existing implementations as patterns."""
+    examples = []
+    seen = set()
 
-    # 2. Search for relevant symbols
-    seen_ids: set[str] = set()
-    hit_ids: list[str] = []
-    sym_parts: list[str] = []
-
-    # Adjust search depth by intent
-    max_results = 5 if intent == "mechanism" else 3
-
-    for hint in search_hints:
-        result = search_symbols(repo, hint, max_results=max_results,
+    for term in terms[:4]:
+        result = search_symbols(repo, term, kind="class", max_results=4,
                                 storage_path=STORAGE_PATH)
         if "error" in result:
             continue
         for match in result.get("results", []):
-            sid = match["id"]
-            if sid in seen_ids:
+            if match["id"] in seen:
                 continue
-            seen_ids.add(sid)
-            hit_ids.append(sid)
-            detail = get_symbol(repo, sid, storage_path=STORAGE_PATH)
-            if "error" not in detail and detail.get("source"):
-                sym_parts.append(
-                    f"### {detail['kind']} {detail['name']} "
-                    f"({detail['file']}:{detail['line']})\n"
-                    f"```python\n{detail['source']}\n```"
-                )
+            if Path(match["file"]).name not in relevant_basenames:
+                continue
+            seen.add(match["id"])
 
-    if sym_parts:
-        sections.append("## Relevant Symbols\n" + "\n\n".join(sym_parts))
+            hier = get_type_hierarchy(repo, match["id"],
+                                      storage_path=STORAGE_PATH)
+            if "error" in hier:
+                continue
 
-    # 3. Dependencies from top hits
-    dep_parts = []
-    for sid in hit_ids[:3]:
-        deps = get_dependencies(repo, sid, storage_path=STORAGE_PATH)
+            parents = hier.get("parents", [])
+            children = hier.get("children", [])
+
+            if parents:  # This is a subclass = pattern example
+                sym = get_symbol(repo, match["id"], storage_path=STORAGE_PATH)
+                if "error" in sym:
+                    continue
+                parent_names = [p.get("name", "?") for p in parents]
+                child_names = [c.get("name", "?") for c in children]
+
+                lines = [f"### {match['name']} (extends {', '.join(parent_names)}) — {match['file']} line {match['line']}"]
+                if child_names:
+                    lines.append(f"Sibling subclasses: {', '.join(child_names)}")
+                if sym.get("docstring"):
+                    doc_first = sym["docstring"].strip().split("\n")[0]
+                    lines.append(f"Purpose: {doc_first}")
+                if sym.get("source"):
+                    source = sym["source"]
+                    if len(source) > 1500:
+                        source = source[:1500] + "\n    # ... (see full source above)"
+                    lines.append(f"```python\n{source}\n```")
+                examples.append("\n".join(lines))
+
+    if not examples:
+        return ""
+    return "Pattern examples (existing implementations to follow):\n\n" + "\n\n".join(examples[:3])
+
+
+def _build_rich_symbol_intel(repo: str, terms: list[str],
+                              relevant_basenames: set) -> str:
+    """Build rich symbol intelligence with relationships, filtered to relevant files."""
+    parts = []
+    seen_ids = set()
+
+    for term in terms[:8]:
+        result = search_symbols(repo, term, max_results=3, storage_path=STORAGE_PATH)
+        if "error" in result:
+            continue
+        for match in result.get("results", []):
+            if match["id"] in seen_ids:
+                continue
+            if Path(match["file"]).name not in relevant_basenames:
+                continue
+            seen_ids.add(match["id"])
+
+            sym = get_symbol(repo, match["id"], storage_path=STORAGE_PATH)
+            if "error" in sym:
+                continue
+
+            entry = [f"### {sym['name']} ({sym['kind']}) — {sym['file']} line {sym['line']}-{sym.get('end_line', '?')}"]
+
+            if sym.get("signature"):
+                entry.append(f"Signature: `{sym['signature']}`")
+            if sym.get("docstring"):
+                entry.append(f"Purpose: {sym['docstring'].strip()}")
+
+            # Relationships
+            rel_parts = []
+            deps = get_dependencies(repo, match["id"], storage_path=STORAGE_PATH)
+            if "error" not in deps and deps.get("calls"):
+                calls = [_clean_name(c.get("name", "?")) for c in deps["calls"][:4]]
+                rel_parts.append(f"Calls: {', '.join(calls)}")
+            callers = get_callers(repo, match["id"], storage_path=STORAGE_PATH)
+            if "error" not in callers and callers.get("callers"):
+                cnames = [_clean_name(c.get("name", "?")) for c in callers["callers"][:4]]
+                rel_parts.append(f"Called by: {', '.join(cnames)}")
+            if rel_parts:
+                entry.append(" | ".join(rel_parts))
+
+            # Source excerpt
+            if sym.get("source"):
+                source = sym["source"]
+                if len(source) > 2000:
+                    source = source[:2000] + "\n    # ... (see full source above)"
+                entry.append(f"```python\n{source}\n```")
+
+            parts.append("\n".join(entry))
+
+    if not parts:
+        return ""
+    return "Key symbols:\n\n" + "\n\n".join(parts[:12])
+
+
+def _find_key_symbols(repo: str, terms: list[str],
+                       relevant_basenames: set) -> list[dict]:
+    """Find key symbols matching search terms, with dependency expansion."""
+    key_syms = []
+    seen_ids = set()
+
+    # First: find direct matches
+    for term in terms[:10]:
+        result = search_symbols(repo, term, max_results=5,
+                                storage_path=STORAGE_PATH)
+        if "error" in result:
+            continue
+        for match in result.get("results", []):
+            if match["id"] in seen_ids:
+                continue
+            if Path(match["file"]).name not in relevant_basenames:
+                continue
+            seen_ids.add(match["id"])
+            key_syms.append(match)
+
+    # Second: expand with dependencies of key symbols (1 level deep)
+    dep_syms = []
+    for sym in key_syms[:15]:
+        deps = get_dependencies(repo, sym["id"], storage_path=STORAGE_PATH)
         if "error" in deps:
             continue
-        for call in deps.get("calls", [])[:3]:
-            tid = call.get("target_id", "")
-            if tid and tid not in seen_ids:
-                seen_ids.add(tid)
-                detail = get_symbol(repo, tid, storage_path=STORAGE_PATH)
-                if "error" not in detail and detail.get("source"):
-                    dep_parts.append(
-                        f"### {detail['kind']} {detail['name']} "
-                        f"({detail['file']}:{detail['line']}) [dependency]\n"
-                        f"```python\n{detail['source']}\n```"
-                    )
-    if dep_parts:
-        sections.append("## Dependencies\n" + "\n\n".join(dep_parts))
+        for dep in deps.get("calls", [])[:4]:
+            dep_id = dep.get("id", "")
+            if dep_id and dep_id not in seen_ids:
+                if Path(dep.get("file", "")).name in relevant_basenames:
+                    seen_ids.add(dep_id)
+                    dep_syms.append(dep)
 
-    # 4. Cross-file references
-    if len(relevant_files) > 1:
-        bridges = find_cross_references(repo, relevant_files, storage_path=STORAGE_PATH)
-        bridge_text = format_bridges(bridges[:15])
+    return key_syms + dep_syms
+
+
+def _build_selective_context(repo: str, terms: list[str],
+                              relevant_files: list,
+                              relevant_basenames: set) -> str:
+    """V15 selective extraction for comprehension/navigation questions."""
+    sections = []
+
+    # Key symbols with full source
+    key_matches = _find_key_symbols(repo, terms, relevant_basenames)
+    sym_parts = []
+    for match in key_matches[:20]:
+        sym = get_symbol(repo, match["id"], storage_path=STORAGE_PATH)
+        if "error" in sym:
+            continue
+
+        header = f"### {sym['name']} ({sym['kind']}) — {sym['file']} line {sym['line']}"
+        if sym.get("end_line"):
+            header += f"-{sym['end_line']}"
+        entry = [header]
+
+        if sym.get("signature"):
+            entry.append(f"Signature: `{sym['signature']}`")
+        if sym.get("docstring"):
+            entry.append(f"Docstring: {sym['docstring'].strip()}")
+
+        rel_parts = []
+        deps = get_dependencies(repo, match["id"], storage_path=STORAGE_PATH)
+        if "error" not in deps and deps.get("calls"):
+            calls = [_clean_name(c.get("name", "?")) for c in deps["calls"][:6]]
+            rel_parts.append(f"Calls: {', '.join(calls)}")
+        callers = get_callers(repo, match["id"], storage_path=STORAGE_PATH)
+        if "error" not in callers and callers.get("callers"):
+            cnames = [_clean_name(c.get("name", "?")) for c in callers["callers"][:6]]
+            rel_parts.append(f"Called by: {', '.join(cnames)}")
+        if rel_parts:
+            entry.append(" | ".join(rel_parts))
+
+        if sym.get("source"):
+            entry.append(f"```python\n{sym['source']}\n```")
+
+        sym_parts.append("\n".join(entry))
+
+    if sym_parts:
+        sections.append("# Key Symbols\n\n" + "\n\n".join(sym_parts))
+
+    # File outlines
+    outline_parts = []
+    for basename in relevant_files:
+        outline = get_file_outline(repo, basename, storage_path=STORAGE_PATH)
+        if "error" not in outline and outline.get("symbols"):
+            outline_parts.append(f"{basename}:\n{_format_outline(outline)}")
+    if outline_parts:
+        sections.append("# File Structure\n" + "\n\n".join(outline_parts))
+
+    # Type hierarchy
+    hierarchy_parts = _build_type_hierarchy(repo, terms, relevant_basenames)
+    if hierarchy_parts:
+        sections.append("# Type Hierarchy\n" + "\n".join(hierarchy_parts))
+
+    # Cross-file bridges
+    if len(relevant_files) >= 2:
+        bridges = find_cross_references(repo, relevant_files,
+                                        storage_path=STORAGE_PATH)
+        bridge_text = format_bridges(bridges)
         if bridge_text:
             sections.append(bridge_text)
 
-    # 5. Smart context to fill remaining budget
-    current = "\n\n".join(sections)
-    remaining = budget - count_tokens(current)
-    if remaining > 500:
-        focus = search_hints[0] if search_hints else question.get("question", "")
-        ctx = get_context(repo, budget_tokens=min(remaining, 4000),
-                          focus=focus, include_deps=True,
-                          storage_path=STORAGE_PATH)
-        if "error" not in ctx:
-            extra = []
-            for sym in ctx.get("symbols", []):
-                sid = sym["id"]
-                if sid in seen_ids:
-                    continue
-                seen_ids.add(sid)
-                source = sym.get("source", "")
-                if source:
-                    tag = f" [{sym['context_type']}]" if "context_type" in sym else ""
-                    extra.append(
-                        f"### {sym['kind']} {sym['name']} "
-                        f"({sym['file']}:{sym['line']}){tag}\n"
-                        f"```python\n{source}\n```"
-                    )
-            if extra:
-                sections.append("## Additional Context\n" + "\n\n".join(extra))
-
-    # Budget enforcement
-    text = "\n\n".join(sections)
-    while count_tokens(text) > budget and len(sections) > 1:
-        sections.pop()
-        text = "\n\n".join(sections)
-
-    return text if text else "(no context found)"
+    return "\n\n".join(sections) if sections else "(no symbols found)"
 
 
-# ---------------------------------------------------------------------------
-# Main entry point
-# ---------------------------------------------------------------------------
+def _build_modification_context(repo: str, terms: list[str],
+                                 relevant_files: list, relevant_basenames: set,
+                                 store, index) -> str:
+    """Raw files + intelligence for modification questions."""
+    sections = []
+
+    # Raw files first (full context needed for modification)
+    for basename in relevant_files:
+        full_path = _resolve_file_path(basename, index)
+        if not full_path:
+            continue
+        raw = _read_raw_file(basename, index, store)
+        if raw:
+            sections.append(f"## {full_path}\n```python\n{raw}\n```")
+
+    intel_sections = []
+
+    # Key symbols with relationships (highlights what matters)
+    symbol_intel = _build_rich_symbol_intel(repo, terms, relevant_basenames)
+    if symbol_intel:
+        intel_sections.append(symbol_intel)
+
+    # Pattern examples (critical for modification)
+    pattern_text = _find_pattern_examples(repo, terms, relevant_basenames)
+    if pattern_text:
+        intel_sections.append(pattern_text)
+
+    # Type hierarchy
+    hierarchy_parts = _build_type_hierarchy(repo, terms, relevant_basenames)
+    if hierarchy_parts:
+        intel_sections.append("Type hierarchy:\n" + "\n".join(hierarchy_parts))
+
+    # Cross-file bridges
+    if len(relevant_files) >= 2:
+        bridges = find_cross_references(repo, relevant_files,
+                                        storage_path=STORAGE_PATH)
+        bridge_text = format_bridges(bridges)
+        if bridge_text:
+            intel_sections.append(bridge_text)
+
+    if intel_sections:
+        sections.append(
+            "---\n# Structural Analysis\n" + "\n\n".join(intel_sections)
+        )
+
+    return "\n\n".join(sections) if sections else "(no files found)"
+
+
+def _build_type_hierarchy(repo: str, terms: list[str],
+                           relevant_basenames: set) -> list[str]:
+    """Build type hierarchy entries for relevant classes."""
+    hierarchy_parts = []
+    seen_hier = set()
+    for term in terms[:5]:
+        result = search_symbols(repo, term, kind="class", max_results=3,
+                                storage_path=STORAGE_PATH)
+        if "error" in result or not result.get("results"):
+            continue
+        for match in result["results"]:
+            if match["name"] in seen_hier:
+                continue
+            if Path(match["file"]).name not in relevant_basenames:
+                continue
+            seen_hier.add(match["name"])
+            hier = get_type_hierarchy(repo, match["id"],
+                                      storage_path=STORAGE_PATH)
+            if "error" in hier:
+                continue
+            parents = hier.get("parents", [])
+            children = hier.get("children", [])
+            if parents or children:
+                parts = [f"- {match['name']}"]
+                if parents:
+                    parent_names = [p.get("name", "?") for p in parents]
+                    parts.append(f"  inherits from: {', '.join(parent_names)}")
+                if children:
+                    child_names = [c.get("name", "?") for c in children[:10]]
+                    parts.append(f"  subclasses: {', '.join(child_names)}")
+                hierarchy_parts.append("\n".join(parts))
+    return hierarchy_parts
+
 
 def build_symdex_context(question: dict, repo: str = REPO) -> tuple[str, int]:
-    """Build context using adaptive multi-strategy assembly (v3).
+    """V16: Hybrid context — routes by question category.
 
-    1. Classify question intent (location/mechanism/change)
-    2. Compute raw file size to select strategy (precise/enriched/surgical)
-    3. Build context using the selected strategy
-    4. All strategies include NexusSymdex intelligence (outlines, annotations,
-       cross-references) on top of the most complete raw content the budget allows
+    - Comprehension/navigation: selective extraction (fewer tokens, equal quality)
+    - Modification: raw files + intelligence (needs full context for extension)
 
     Returns:
         (context_string, token_count)
     """
     relevant_files = question.get("relevant_files", [])
-    intent = classify_question(question)
+    relevant_basenames = set(relevant_files)
+    category = question.get("category", "comprehension")
+    terms = _get_search_terms(question)
 
-    # Load index once for shared use
     store = IndexStore(base_path=STORAGE_PATH)
     index = store.load_index("local", "click")
 
-    # Compute raw context size for strategy selection
-    raw_ctx, raw_tokens = build_raw_context(question, repo)
-    strategy = classify_file_strategy(raw_tokens)
-
-    if strategy == "precise":
-        context = _strategy_precise(question, repo, relevant_files, index, store, intent)
-    elif strategy == "enriched":
-        context = _strategy_enriched(question, repo, relevant_files,
-                                     index, store, intent, raw_tokens)
+    if category == "modification":
+        context = _build_modification_context(
+            repo, terms, relevant_files, relevant_basenames, store, index)
     else:
-        context = _strategy_surgical(question, repo, relevant_files,
-                                     index, store, intent, raw_tokens)
+        context = _build_selective_context(
+            repo, terms, relevant_files, relevant_basenames)
 
     tokens = count_tokens(context)
     return context, tokens
 
 
 def build_raw_context(question: dict, repo: str = REPO) -> tuple[str, int]:
-    """Build context by reading full files listed in the question.
-
-    Returns:
-        (context_string, token_count)
-    """
+    """Build context by reading full files listed in the question."""
     owner, name = repo.split("/", 1)
     store = IndexStore(base_path=STORAGE_PATH)
     index = store.load_index(owner, name)

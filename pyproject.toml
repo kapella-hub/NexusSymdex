@@ -16,6 +16,7 @@ anthropic = ["anthropic>=0.40.0"]
 gemini = ["google-generativeai>=0.8.0"]
 all = ["anthropic>=0.40.0", "google-generativeai>=0.8.0"]
 test = ["pytest", "pytest-asyncio", "pytest-cov"]
+benchmark = ["anthropic>=0.40.0", "tiktoken>=0.7.0"]
 
 [project.scripts]
 nexus-symdex = "nexus_symdex.server:main"

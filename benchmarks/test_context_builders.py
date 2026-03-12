@@ -83,10 +83,21 @@ class TestBuildRawContext:
 
 
 class TestSymdexVsRaw:
-    def test_symdex_is_smaller_than_raw(self):
-        """Symdex context should be more token-efficient than raw file dumps."""
-        _, symdex_tokens = build_symdex_context(SAMPLE_QUESTION)
+    def test_symdex_uses_fewer_tokens_for_comprehension(self):
+        """V16: Selective extraction uses fewer tokens for comprehension."""
+        ctx, symdex_tokens = build_symdex_context(SAMPLE_QUESTION)
         _, raw_tokens = build_raw_context(SAMPLE_QUESTION)
-        assert symdex_tokens < raw_tokens, (
-            f"Expected symdex ({symdex_tokens}) < raw ({raw_tokens})"
-        )
+        # Comprehension uses selective extraction = fewer tokens
+        assert symdex_tokens < raw_tokens
+
+    def test_symdex_contains_source_code(self):
+        """V10: Context should contain full source code."""
+        ctx, _ = build_symdex_context(SAMPLE_QUESTION)
+        assert "ParamType" in ctx
+        assert "```python" in ctx
+
+    def test_symdex_contains_symbol_extractions(self):
+        """V15: Context should contain symbol extractions with source."""
+        ctx, _ = build_symdex_context(SAMPLE_QUESTION)
+        assert "```python" in ctx
+        assert "###" in ctx  # Symbol headers

@@ -35,12 +35,9 @@ def find_cross_references(
 
     # Resolve basenames to actual indexed file paths
     file_set = set()
-    basename_to_path: dict[str, str] = {}
     for sf in index.source_files:
-        bn = Path(sf).name
-        if bn in file_basenames:
+        if Path(sf).name in file_basenames:
             file_set.add(sf)
-            basename_to_path[bn] = sf
 
     if len(file_set) < 2:
         return []  # Need at least 2 files for cross-references
@@ -86,7 +83,7 @@ def find_cross_references(
     seen = set()
     unique = []
     for b in bridges:
-        key = (b["from_file"], b["to_symbol"], b["type"])
+        key = (b["from_file"], b["to_file"], b["to_symbol"], b["type"])
         if key not in seen:
             seen.add(key)
             unique.append(b)

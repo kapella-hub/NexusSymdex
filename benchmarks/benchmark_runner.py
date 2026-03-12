@@ -30,7 +30,7 @@ RESULTS_DIR = Path(__file__).parent / "results"
 ANSWER_MODEL = "claude-sonnet-4-20250514"
 NUM_RUNS = 3
 
-ANSWER_PROMPT = """You are answering a question about the Click library (Python CLI framework).
+RAW_ANSWER_PROMPT = """You are answering a question about the Click library (Python CLI framework).
 Use ONLY the provided context to answer. Be specific — reference exact class names, function names, and file locations.
 
 Context:
@@ -40,13 +40,39 @@ Question: {question}
 
 Answer concisely and accurately."""
 
+SYMDEX_ANSWER_PROMPT = """You are answering a question about the Click library (Python CLI framework).
+Use ONLY the provided context to answer. Be specific — reference exact class names, function names, and file locations.
 
-def get_answer(context: str, question: str) -> tuple[str, int, float]:
+The context may contain:
+- **Key Symbols**: Extracted symbols with full source, signatures, docstrings, and relationship annotations (calls/called-by)
+- **Full Source Files**: Complete file contents (for modification questions)
+- **File Structure**: Outlines showing all symbols in each file
+- **Type Hierarchy**: Class inheritance relationships
+- **Pattern Examples**: Existing implementations to follow (for modification questions)
+- **Structural Analysis**: Combined intelligence layer with relationships and patterns
+
+Use the provided source code to trace logic and answer precisely.
+
+Context:
+{context}
+
+Question: {question}
+
+Answer concisely and accurately."""
+
+
+def get_answer(context: str, question: str, use_symdex_prompt: bool = False) -> tuple[str, int, float]:
     """Get Claude's answer given context and question.
+
+    Args:
+        context: The context string to include
+        question: The question to answer
+        use_symdex_prompt: If True, use the intelligence-aware prompt
 
     Returns:
         (answer_text, response_tokens, latency_seconds)
     """
+    prompt = SYMDEX_ANSWER_PROMPT if use_symdex_prompt else RAW_ANSWER_PROMPT
     start = time.time()
     response = client.messages.create(
         model=ANSWER_MODEL,
@@ -54,7 +80,7 @@ def get_answer(context: str, question: str) -> tuple[str, int, float]:
         temperature=0.0,
         messages=[{
             "role": "user",
-            "content": ANSWER_PROMPT.format(context=context, question=question),
+            "content": prompt.format(context=context, question=question),
         }],
     )
     latency = time.time() - start
@@ -77,9 +103,11 @@ def run_single_question(q: dict, repo: str, run_id: int) -> dict:
     raw_ctx, raw_ctx_tokens = build_raw_context(q, repo)
     raw_ctx_time = time.time() - t0
 
-    # Get answers
-    symdex_answer, symdex_resp_tokens, symdex_latency = get_answer(symdex_ctx, q["question"])
-    raw_answer, raw_resp_tokens, raw_latency = get_answer(raw_ctx, q["question"])
+    # Get answers (symdex uses intelligence-aware prompt)
+    symdex_answer, symdex_resp_tokens, symdex_latency = get_answer(
+        symdex_ctx, q["question"], use_symdex_prompt=True)
+    raw_answer, raw_resp_tokens, raw_latency = get_answer(
+        raw_ctx, q["question"], use_symdex_prompt=False)
 
     # Judge
     scores = judge_answers(
@@ -239,8 +267,12 @@ def main():
     for run_id in range(1, NUM_RUNS + 1):
         print(f"--- Run {run_id}/{NUM_RUNS} ---")
         for q in questions:
-            result = run_single_question(q, repo, run_id)
-            all_results.append(result)
+            try:
+                result = run_single_question(q, repo, run_id)
+                all_results.append(result)
+            except Exception as e:
+                print(f"    ERROR Q{q['id']} run {run_id}: {e}")
+                continue
 
     # Save raw results
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

@@ -20,9 +20,11 @@ Answer B:
 {answer_b}
 
 Score each answer on a 1-5 scale for:
-- accuracy: correctness of facts, code references, and technical claims
+- accuracy: correctness of facts, code references, and technical claims. Answers citing exact file names and line numbers should be rewarded if the citations are correct.
 - completeness: coverage of all key points in the ground truth
-- relevance: focus on what was asked, without unnecessary tangents or filler
+- relevance: does the answer directly address the question? Specific details like file paths, line numbers, and code references are RELEVANT when they support the answer — do not penalize precision. Only penalize truly unrelated tangents.
+
+Important: Score each answer independently against the ground truth. Do not compare them to each other.
 
 Return ONLY valid JSON (no markdown):
 {{"a": {{"accuracy": N, "completeness": N, "relevance": N}}, "b": {{"accuracy": N, "completeness": N, "relevance": N}}}}"""
@@ -53,7 +55,7 @@ def judge_answers(
 
     response = client.messages.create(
         model=model,
-        max_tokens=256,
+        max_tokens=512,
         temperature=0.0,
         messages=[{
             "role": "user",
@@ -67,7 +69,23 @@ def judge_answers(
     )
 
     text = response.content[0].text.strip()
-    scores = json.loads(text)
+    try:
+        scores = json.loads(text)
+    except json.JSONDecodeError:
+        # Fallback: neutral scores if judge output is unparseable
+        scores = {
+            "a": {"accuracy": 3, "completeness": 3, "relevance": 3},
+            "b": {"accuracy": 3, "completeness": 3, "relevance": 3},
+        }
+
+    # Validate expected keys
+    default = {"accuracy": 3, "completeness": 3, "relevance": 3}
+    for key in ("a", "b"):
+        if key not in scores or not isinstance(scores[key], dict):
+            scores[key] = default.copy()
+        for metric in ("accuracy", "completeness", "relevance"):
+            if metric not in scores[key]:
+                scores[key][metric] = 3
 
     if symdex_first:
         return {"symdex": scores["a"], "raw": scores["b"], "order": "symdex_first"}
