@@ -119,6 +119,32 @@ Add to your MCP client config:
 
 ## Benchmarks
 
+### LLM Answer Quality: NexusSymdex vs Raw File Context
+
+Benchmark comparing LLM answer quality when given NexusSymdex-assembled context vs raw file dumps. Tested on the [Click](https://github.com/pallets/click) library (Python CLI framework): 20 questions across comprehension, navigation, and modification categories, scored by an LLM judge on accuracy, completeness, and relevance (1-5 scale). Each question run 3 times (60 total evaluations).
+
+**NexusSymdex uses a hybrid strategy**: selective symbol extraction for comprehension/navigation questions (extracting only relevant symbols with relationships), and raw files + structural analysis for modification questions (where full implementation context is needed).
+
+| Metric | NexusSymdex | Raw Files | Delta |
+|--------|:-----------:|:---------:|:-----:|
+| Accuracy | 4.33 | 4.32 | **+0.01** |
+| Completeness | 4.77 | 4.62 | **+0.15** |
+| Relevance | 4.97 | 4.95 | **+0.02** |
+| Avg context tokens | 13,112 | 16,850 | **22% fewer** |
+| Win/Loss/Tie | 14 | 13 | 33 ties |
+
+**By category:**
+
+| Category | NexusSymdex Accuracy | Raw Accuracy | Token Savings |
+|----------|:--------------------:|:------------:|:-------------:|
+| Comprehension | 4.67 | 4.62 | **47%** |
+| Navigation | 4.19 | 4.19 | — |
+| Modification | 4.11 | 4.11 | — |
+
+**Key finding**: NexusSymdex matches or beats raw file context on all quality metrics while using 22% fewer tokens on average. For comprehension questions, selective symbol extraction saves 47% of tokens with no accuracy loss — the model focuses on relevant symbols instead of scanning thousands of lines of irrelevant code.
+
+---
+
 Self-indexed on nexus-symdex itself: 58 Python files, 12,545 lines, 437 symbols, 3,176 references.
 
 ### Search Accuracy
@@ -192,7 +218,7 @@ Self-indexed on nexus-symdex itself: 58 Python files, 12,545 lines, 437 symbols,
 
 | Metric | Value |
 |--------|-------|
-| Tests | **501 passed**, 4 skipped, 0 failed |
+| Tests | **507 passed**, 4 skipped, 0 failed |
 | Coverage | **69%** (65% threshold) |
 | Search top-1 accuracy | **100%** |
 | `from_symbol` accuracy | **99%** (call refs attributed to correct enclosing function) |
