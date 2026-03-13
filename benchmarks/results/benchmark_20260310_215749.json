@@ -1,0 +1,689 @@
+{
+  "results": [
+    {
+      "question_id": 1,
+      "run_id": 1,
+      "category": "comprehension",
+      "question": "How does Click determine the order in which parameters are processed during command parsing?",
+      "symdex": {
+        "context_tokens": 28146,
+        "response_tokens": 258,
+        "context_build_time": 0.036,
+        "answer_latency": 10.271,
+        "scores": {
+          "accuracy": 4,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "Click determines parameter processing order using the `iter_params_for_processing` function in core.py line 116. This function takes two sequences:\n\n1. **invocation_order**: The order parameters were provided by the user on the command line\n2. **declaration_order**: The order parameters were declared in the command definition\n\nThe processing order is determined by a `sort_key` function that returns a tuple `(not item.is_eager, idx)` where:\n\n- **Eager parameters** (with `is_eager=True`) are processed first, regardless of invocation order\n- **Non-eager parameters** are processed in the order they were invoked by the user (respecting command line order)\n- If a parameter wasn't invoked, it gets `idx = float(\"inf\")` and is processed last\n\nThe function uses `sorted(declaration_order, key=sort_key)` to return the final processing order.\n\nThis means:\n1. Eager parameters come first (sorted by invocation order among themselves)\n2. Then non-eager parameters in the order the user provided them\n3. Finally, any parameters not provided by the user\n\nThis behavior ensures that user-specified parameter order is respected while still allowing eager parameters (like `--help`) to be processed first for early exit scenarios."
+      },
+      "raw": {
+        "context_tokens": 28100,
+        "response_tokens": 209,
+        "context_build_time": 0.008,
+        "answer_latency": 9.344,
+        "scores": {
+          "accuracy": 5,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "Click determines parameter processing order using the `iter_params_for_processing` function in `core.py`. The order is determined by:\n\n1. **Eagerness first**: Parameters with `is_eager=True` are processed before non-eager parameters\n2. **Invocation order**: Among parameters with the same eagerness level, they are processed in the order they were invoked by the user on the command line\n3. **Declaration order fallback**: If parameters weren't invoked (no user input), they fall back to their declaration order\n\nThe function uses a `sort_key` that returns a tuple `(not item.is_eager, idx)` where:\n- `not item.is_eager` ensures eager parameters (False) come before non-eager ones (True)\n- `idx` is the parameter's position in the invocation order, or `float(\"inf\")` if not invoked\n\nThis means the user's command line input order takes precedence over the order parameters were declared in the code, but eager parameters always process first regardless of invocation order."
+      },
+      "token_savings_pct": -0.2,
+      "judge_order": "raw_first"
+    },
+    {
+      "question_id": 2,
+      "run_id": 1,
+      "category": "comprehension",
+      "question": "How does the Choice type handle case-insensitive matching and what method controls the normalization of choice values?",
+      "symdex": {
+        "context_tokens": 9077,
+        "response_tokens": 239,
+        "context_build_time": 0.025,
+        "answer_latency": 7.366,
+        "scores": {
+          "accuracy": 5,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "Based on the provided context, the `Choice` type handles case-insensitive matching through the `normalize_choice` method in `types.py` line 288.\n\n**Case-insensitive handling:**\n- The `Choice` class has a `case_sensitive` parameter in its `__init__` method (line 258) that defaults to `True`\n- When `case_sensitive=False`, the `normalize_choice` method applies `.casefold()` to the normalized value\n\n**Normalization control:**\nThe `normalize_choice` method (line 288) controls the normalization of choice values. It:\n\n1. First converts the choice to a string (using `choice.name` for enums, otherwise `str(choice)`)\n2. Applies `ctx.token_normalize_func` if available \n3. If `case_sensitive=False`, applies `.casefold()` to make it case-insensitive\n4. Returns the normalized string\n\nThe method creates a mapping between original choices and their normalized values via `_normalized_mapping` (line 270), which is used during conversion to match user input against the available choices. When converting user input, it normalizes the input value the same way and finds the matching original choice."
+      },
+      "raw": {
+        "context_tokens": 9006,
+        "response_tokens": 251,
+        "context_build_time": 0.003,
+        "answer_latency": 7.434,
+        "scores": {
+          "accuracy": 5,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "Based on the provided context from `types.py`, the `Choice` type handles case-insensitive matching through the following mechanism:\n\n## Case-Insensitive Matching\n\nThe `Choice` class has a `case_sensitive` parameter in its `__init__` method that defaults to `True`. When set to `False`, it enables case-insensitive matching.\n\n## Normalization Method\n\nThe normalization of choice values is controlled by the `normalize_choice` method in the `Choice` class. This method:\n\n1. **Converts choices to strings**: Uses `choice.name` for enum values, otherwise converts to string with `str(choice)`\n2. **Applies context normalization**: Uses `ctx.token_normalize_func` if available\n3. **Handles case sensitivity**: If `case_sensitive=False`, it calls `normed_value.casefold()` to create a case-insensitive normalized value\n\n## Usage in Conversion\n\nThe `convert` method uses `normalize_choice` to normalize the input value, then compares it against a mapping of normalized choices created by `_normalized_mapping`, which internally calls `normalize_choice` for each choice.\n\nThe `normalize_choice` method was added in version 8.2.0 and allows for custom normalization behavior by overriding this method in subclasses."
+      },
+      "token_savings_pct": -0.8,
+      "judge_order": "raw_first"
+    },
+    {
+      "question_id": 3,
+      "run_id": 1,
+      "category": "comprehension",
+      "question": "How does Click's Context class manage resource cleanup, and what is the relationship between `with_resource`, `call_on_close`, and the `_exit_stack`?",
+      "symdex": {
+        "context_tokens": 28146,
+        "response_tokens": 376,
+        "context_build_time": 0.038,
+        "answer_latency": 11.574,
+        "scores": {
+          "accuracy": 5,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "Based on the provided code, Click's Context class manages resource cleanup through a unified system built around Python's `ExitStack`:\n\n## Core Components\n\n**`_exit_stack`**: A `contextlib.ExitStack` instance that serves as the central cleanup coordinator. It's initialized in `__init__` and recreated after each cleanup in `_close_with_exception_info` (line 623).\n\n## Resource Registration Methods\n\n**`with_resource` (line 575)**: Registers context managers by calling `self._exit_stack.enter_context(context_manager)`. This immediately enters the context manager and schedules its `__exit__` method for cleanup.\n\n**`call_on_close` (line 604)**: Registers cleanup functions by calling `self._exit_stack.callback(f)`. This schedules arbitrary callables to run during cleanup.\n\n## Cleanup Execution\n\n**`_close_with_exception_info` (line 623)**: The core cleanup method that calls `self._exit_stack.__exit__(exc_type, exc_value, tb)`. This:\n- Invokes all registered cleanup functions and context manager exits\n- Passes exception information to allow proper exception handling\n- Creates a fresh `ExitStack` for potential context reuse\n- Returns the exit stack's result\n\n## Integration Points\n\nThe cleanup system integrates with Context lifecycle through:\n- `__exit__` method: Calls `_close_with_exception_info` when context depth reaches 0\n- `close` method: Public interface that calls `_close_with_exception_info` with no exception info\n- `exit` method: Calls `close()` before raising `Exit` exception (as of version 8.2)\n\nThis design provides a consistent cleanup mechanism where both context managers (`with_resource`) and plain functions (`call_on_close`) are managed through the same `ExitStack`, ensuring proper resource cleanup regardless of how the context exits."
+      },
+      "raw": {
+        "context_tokens": 28100,
+        "response_tokens": 339,
+        "context_build_time": 0.014,
+        "answer_latency": 10.47,
+        "scores": {
+          "accuracy": 5,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "Based on the code in `core.py`, Click's Context class manages resource cleanup through an integrated system using Python's `ExitStack`:\n\n## Core Components\n\n**`_exit_stack`**: A `contextlib.ExitStack` instance that manages all registered resources and cleanup functions.\n\n**`with_resource(context_manager)`**: Registers a context manager by calling `self._exit_stack.enter_context(context_manager)`. This enters the context manager immediately and schedules its `__exit__()` method to be called during cleanup.\n\n**`call_on_close(f)`**: Registers a cleanup function by calling `self._exit_stack.callback(f)`. This schedules the function to be called during cleanup without entering it as a context manager.\n\n## Cleanup Execution\n\nResources are cleaned up in two scenarios:\n\n1. **When Context exits**: The `__exit__` method calls `_close_with_exception_info()` if `_depth == 0`\n2. **Manual cleanup**: The `close()` method calls `_close_with_exception_info(None, None, None)`\n\nThe `_close_with_exception_info()` method:\n- Calls `self._exit_stack.__exit__(exc_type, exc_value, tb)` to unwind all registered resources\n- Creates a fresh `ExitStack()` for potential context reuse\n- Returns the exit stack's result for exception handling\n\n## Resource Lifecycle\n\n```python\n# Register resources\nctx.with_resource(open('file.txt'))  # Context manager\nctx.call_on_close(cleanup_func)      # Cleanup function\n\n# Cleanup happens automatically when context exits\n# or manually via ctx.close()\n```\n\nThis design ensures proper resource cleanup even when exceptions occur, leveraging `ExitStack`'s exception propagation capabilities."
+      },
+      "token_savings_pct": -0.2,
+      "judge_order": "symdex_first"
+    },
+    {
+      "question_id": 4,
+      "run_id": 1,
+      "category": "comprehension",
+      "question": "How does the `Group.invoke` method handle chain mode differently from normal (non-chain) mode?",
+      "symdex": {
+        "context_tokens": 28173,
+        "response_tokens": 276,
+        "context_build_time": 0.038,
+        "answer_latency": 11.703,
+        "scores": {
+          "accuracy": 4,
+          "completeness": 4,
+          "relevance": 5
+        },
+        "answer": "Looking at the `Group.invoke` method in core.py (lines 1907+), it handles chain mode and normal mode very differently:\n\n## Normal (Non-Chain) Mode:\n- Only allows invocation of a **single command**\n- Sets `ctx.invoked_subcommand` to the specific command name\n- Calls `self.resolve_command(ctx, args)` once to get the command\n- Creates one sub-context and invokes that command directly\n- Returns the result of that single command invocation\n\n## Chain Mode:\n- Allows invocation of **multiple commands in sequence**\n- Sets `ctx.invoked_subcommand` to `\"*\"` (indicating multiple subcommands will execute)\n- Uses a loop: `while args:` to process multiple commands\n- Calls `self.resolve_command(ctx, args)` repeatedly for each command in the chain\n- Creates multiple sub-contexts, one for each command\n- Collects all command results in a list: `rv.append(sub_ctx.command.invoke(sub_ctx))`\n- Returns a **list of all command results** instead of a single result\n\nThe key difference is that chain mode processes and executes multiple commands sequentially, collecting their results into a list, while normal mode executes only one command and returns its individual result.\n\nBoth modes pass the final result(s) through `_process_result()` which applies any registered result callback via `self._result_callback`."
+      },
+      "raw": {
+        "context_tokens": 28100,
+        "response_tokens": 347,
+        "context_build_time": 0.015,
+        "answer_latency": 9.506,
+        "scores": {
+          "accuracy": 4,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "Based on the `Group.invoke` method in `core.py`, here's how chain mode differs from normal mode:\n\n## Normal (Non-Chain) Mode:\n- Only allows invocation of a **single subcommand**\n- Sets `ctx.invoked_subcommand` to the specific command name\n- Creates one sub-context for the matched command\n- Returns the result of that single subcommand invocation\n- Uses `self.resolve_command(ctx, args)` once to find the command\n\n## Chain Mode:\n- Allows invocation of **multiple subcommands** in sequence\n- Sets `ctx.invoked_subcommand` to `\"*\"` (indicating multiple commands will execute)\n- Creates multiple sub-contexts, one for each command in the chain\n- Processes commands in a loop: `while args: cmd_name, cmd, args = self.resolve_command(ctx, args)`\n- Returns a **list of results** from all invoked subcommands\n- Each command consumes its arguments, leaving remaining args for the next command\n\n## Key Implementation Details:\n```python\nif not self.chain:\n    # Single command execution\n    cmd_name, cmd, args = self.resolve_command(ctx, args)\n    # ... execute one command, return single result\nelse:\n    # Multiple command execution  \n    ctx.invoked_subcommand = \"*\" if args else None\n    contexts = []\n    while args:  # Process multiple commands\n        # ... build list of contexts\n    rv = []\n    for sub_ctx in contexts:\n        rv.append(sub_ctx.command.invoke(sub_ctx))\n    return _process_result(rv)  # Return list of results\n```\n\nThe result callback receives either a single value (normal mode) or a list of values (chain mode)."
+      },
+      "token_savings_pct": -0.3,
+      "judge_order": "raw_first"
+    },
+    {
+      "question_id": 5,
+      "run_id": 1,
+      "category": "comprehension",
+      "question": "How does Click's `Parameter.consume_value` method determine where a parameter's value comes from, and what is the precedence order?",
+      "symdex": {
+        "context_tokens": 28176,
+        "response_tokens": 265,
+        "context_build_time": 0.037,
+        "answer_latency": 7.523,
+        "scores": {
+          "accuracy": 4,
+          "completeness": 4,
+          "relevance": 4
+        },
+        "answer": "Based on the code in `core.py`, the `Parameter.consume_value` method (line 2294) determines parameter value sources in this precedence order:\n\n1. **Command line** - First checks if the parser produced a value from user input via `opts.get(self.name, UNSET)`. If found, sets `source = ParameterSource.COMMANDLINE`\n\n2. **Environment variable** - If no command line value, calls `self.value_from_envvar(ctx)` which uses `resolve_envvar_value` (line 3167). If found, sets `source = ParameterSource.ENVIRONMENT`\n\n3. **Default map** - If still no value, checks `ctx.lookup_default(self.name)` for context default map values. If found, sets `source = ParameterSource.DEFAULT_MAP`\n\n4. **Parameter default** - Finally checks `self.get_default(ctx)` for the parameter's own default value. If found, sets `source = ParameterSource.DEFAULT`\n\nThe method tracks the source using the `ParameterSource` enum (line 143) and calls `ctx.set_parameter_source(name, source)` (line 845) to store this information in the context.\n\nIf no value is found from any source, the internal `UNSET` sentinel value is returned, which gets handled later in the parameter processing pipeline."
+      },
+      "raw": {
+        "context_tokens": 28100,
+        "response_tokens": 371,
+        "context_build_time": 0.014,
+        "answer_latency": 8.076,
+        "scores": {
+          "accuracy": 5,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "Based on the code in `core.py`, the `Parameter.consume_value` method determines parameter value sources in this precedence order:\n\n1. **Command line** (`ParameterSource.COMMANDLINE`) - highest priority\n2. **Environment variable** (`ParameterSource.ENVIRONMENT`) \n3. **Default map** (`ParameterSource.DEFAULT_MAP`)\n4. **Parameter default** (`ParameterSource.DEFAULT`) - lowest priority\n\nHere's how it works in the `consume_value` method:\n\n```python\ndef consume_value(\n    self, ctx: Context, opts: cabc.Mapping[str, t.Any]\n) -> tuple[t.Any, ParameterSource]:\n    # 1. Check command line first\n    value = opts.get(self.name, UNSET)\n    source = (\n        ParameterSource.COMMANDLINE\n        if value is not UNSET\n        else ParameterSource.DEFAULT\n    )\n\n    # 2. Fall back to environment variable\n    if value is UNSET:\n        envvar_value = self.value_from_envvar(ctx)\n        if envvar_value is not None:\n            value = envvar_value\n            source = ParameterSource.ENVIRONMENT\n\n    # 3. Fall back to default map\n    if value is UNSET:\n        default_map_value = ctx.lookup_default(self.name)\n        if default_map_value is not UNSET:\n            value = default_map_value\n            source = ParameterSource.DEFAULT_MAP\n\n    # 4. Fall back to parameter's default value\n    if value is UNSET:\n        default_value = self.get_default(ctx)\n        if default_value is not UNSET:\n            value = default_value\n            source = ParameterSource.DEFAULT\n\n    return value, source\n```\n\nThe method returns both the resolved value and its `ParameterSource`, which can be retrieved later using `Context.get_parameter_source()`."
+      },
+      "token_savings_pct": -0.3,
+      "judge_order": "raw_first"
+    },
+    {
+      "question_id": 6,
+      "run_id": 1,
+      "category": "comprehension",
+      "question": "How does the BoolParamType convert string values to booleans, and what string values does it recognize?",
+      "symdex": {
+        "context_tokens": 9050,
+        "response_tokens": 229,
+        "context_build_time": 0.022,
+        "answer_latency": 8.362,
+        "scores": {
+          "accuracy": 5,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "The `BoolParamType` converts string values to booleans using the `str_to_bool` method (line 698 in types.py).\n\n**Conversion process:**\n1. If the value is already a boolean, it returns it as-is\n2. For strings, it strips whitespace, converts to lowercase, then looks up the value in the `bool_states` mapping\n\n**Recognized string values:**\nThe `bool_states` dictionary (defined in the `BoolParamType` class starting around line 661) maps these strings to boolean values:\n\n**True values:** `\"1\"`, `\"yes\"`, `\"true\"`, `\"on\"`, `\"t\"`, `\"y\"`\n\n**False values:** `\"0\"`, `\"no\"`, `\"false\"`, `\"off\"`, `\"f\"`, `\"n\"`, `\"\"` (empty string)\n\nThe comparison is case-insensitive due to the `.lower()` call in `str_to_bool`. If a string doesn't match any of these predefined values, `str_to_bool` returns `None`, and the `convert` method fails with an error message listing all recognized values."
+      },
+      "raw": {
+        "context_tokens": 9006,
+        "response_tokens": 242,
+        "context_build_time": 0.005,
+        "answer_latency": 8.969,
+        "scores": {
+          "accuracy": 5,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "The `BoolParamType` converts string values to booleans using the `str_to_bool` static method and the `convert` method in `types.py`.\n\n## Conversion Process:\n\n1. **`str_to_bool` method**: Takes a string or boolean value, strips whitespace, converts to lowercase, and looks it up in the `bool_states` mapping\n2. **`convert` method**: Calls `str_to_bool` and fails with an error message if the value is not recognized\n\n## Recognized String Values:\n\nThe `bool_states` dictionary in `BoolParamType` maps these string values (case-insensitive):\n\n**True values:**\n- `\"1\"`, `\"yes\"`, `\"true\"`, `\"on\"`, `\"t\"`, `\"y\"`\n\n**False values:** \n- `\"0\"`, `\"no\"`, `\"false\"`, `\"off\"`, `\"f\"`, `\"n\"`, `\"\"` (empty string)\n\nThe conversion is case-insensitive due to the `.lower()` call in `str_to_bool`. If a string doesn't match any of these predefined values, the `convert` method calls `self.fail()` with an error message listing all recognized values."
+      },
+      "token_savings_pct": -0.5,
+      "judge_order": "symdex_first"
+    },
+    {
+      "question_id": 7,
+      "run_id": 1,
+      "category": "comprehension",
+      "question": "How does Command.main handle the complete lifecycle of a CLI invocation, including error handling and standalone mode?",
+      "symdex": {
+        "context_tokens": 28172,
+        "response_tokens": 443,
+        "context_build_time": 0.038,
+        "answer_latency": 14.247,
+        "scores": {
+          "accuracy": 5,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "Based on the code in `core.py`, `Command.main` (lines 1338-1456) handles the complete CLI lifecycle through several key phases:\n\n## Argument Processing & Setup\n- Takes `args` from `sys.argv[1:]` if not provided, with Windows glob expansion via `_expand_args()` if `windows_expand_args=True`\n- Auto-detects `prog_name` from `sys.argv[0]` using `_detect_program_name()`\n- Processes shell completion early via `_main_shell_completion()` and exits if completion is requested\n\n## Core Execution Flow\nThe main execution happens in nested try-except blocks:\n\n```python\nwith self.make_context(prog_name, args, **extra) as ctx:\n    rv = self.invoke(ctx)\n    if not standalone_mode:\n        return rv\n    ctx.exit()\n```\n\n## Error Handling Strategy\nThe method handles different error types with specific behaviors:\n\n1. **User Interruption**: `EOFError`/`KeyboardInterrupt` \u2192 converts to `Abort()`\n2. **Click Exceptions**: `ClickException` \u2192 calls `e.show()` and exits with `e.exit_code` \n3. **Broken Pipe**: `OSError` with `errno.EPIPE` \u2192 wraps stdout/stderr with `PacifyFlushWrapper` and exits\n4. **Explicit Exits**: `Exit` exception \u2192 exits with the specified code\n5. **User Aborts**: `Abort` exception \u2192 prints \"Aborted!\" and exits with code 1\n\n## Standalone vs Non-Standalone Mode\n- **Standalone mode** (`standalone_mode=True`, default): Catches all exceptions, shows error messages, and calls `sys.exit()` - never returns normally on errors\n- **Non-standalone mode** (`standalone_mode=False`): Propagates exceptions to caller and returns exit codes instead of calling `sys.exit()`\n\n## Context Management\nUses `make_context()` to create a `Context` object that manages parsing and state, with proper cleanup via context manager protocol.\n\nThis design ensures robust error handling while providing flexibility for both CLI applications (standalone) and programmatic usage (non-standalone)."
+      },
+      "raw": {
+        "context_tokens": 28100,
+        "response_tokens": 613,
+        "context_build_time": 0.015,
+        "answer_latency": 18.489,
+        "scores": {
+          "accuracy": 5,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "Based on the `Command.main` method in `core.py`, here's how it handles the complete CLI invocation lifecycle:\n\n## Argument Processing\n1. **Args preparation**: If `args` is None, uses `sys.argv[1:]` and expands Windows args if `windows_expand_args=True`\n2. **Program name detection**: Auto-detects from `sys.argv[0]` if `prog_name` is None\n3. **Shell completion**: Calls `_main_shell_completion()` to handle completion requests and exit early if needed\n\n## Main Execution Flow\nThe method uses nested try-except blocks to handle the execution:\n\n```python\ntry:\n    try:\n        with self.make_context(prog_name, args, **extra) as ctx:\n            rv = self.invoke(ctx)\n            if not standalone_mode:\n                return rv\n            ctx.exit()\n    except (EOFError, KeyboardInterrupt) as e:\n        echo(file=sys.stderr)\n        raise Abort() from e\n    except ClickException as e:\n        if not standalone_mode:\n            raise\n        e.show()\n        sys.exit(e.exit_code)\n    except OSError as e:\n        if e.errno == errno.EPIPE:\n            # Handle broken pipe\n            sys.stdout = PacifyFlushWrapper(sys.stdout)\n            sys.stderr = PacifyFlushWrapper(sys.stderr)\n            sys.exit(1)\n        else:\n            raise\nexcept Exit as e:\n    # Handle ctx.exit() calls\n    if standalone_mode:\n        sys.exit(e.exit_code)\n    else:\n        return e.exit_code\nexcept Abort:\n    if not standalone_mode:\n        raise\n    echo(_(\"Aborted!\"), file=sys.stderr)\n    sys.exit(1)\n```\n\n## Standalone Mode Behavior\n- **`standalone_mode=True` (default)**: Catches all exceptions, shows error messages, and calls `sys.exit()` - never returns normally\n- **`standalone_mode=False`**: Propagates exceptions to caller and returns the command's return value\n\n## Error Handling Categories\n1. **User interruption** (`EOFError`, `KeyboardInterrupt`): Converts to `Abort`\n2. **Click exceptions** (`ClickException`): Shows formatted error message and exits with `e.exit_code`\n3. **Broken pipe** (`OSError` with `errno.EPIPE`): Wraps stdout/stderr and exits with code 1\n4. **Explicit exits** (`Exit`): Uses the provided exit code\n5. **User abort** (`Abort`): Shows \"Aborted!\" message and exits with code 1\n\n## Context Management\n- Creates context with `make_context(prog_name, args, **extra)`\n- Uses context manager to ensure proper cleanup via `ctx.exit()` or resource cleanup\n- In standalone mode, calls `ctx.exit()` after successful command execution\n\nThe method ensures that in standalone mode, the application always terminates cleanly with appropriate exit codes and error messages, while in non-standalone mode it behaves like a regular function that can be called programmatically."
+      },
+      "token_savings_pct": -0.3,
+      "judge_order": "symdex_first"
+    },
+    {
+      "question_id": 8,
+      "run_id": 1,
+      "category": "navigation",
+      "question": "Where is the `CliRunner.isolation` context manager implemented, and what global state does it mock?",
+      "symdex": {
+        "context_tokens": 4308,
+        "response_tokens": 226,
+        "context_build_time": 0.025,
+        "answer_latency": 7.128,
+        "scores": {
+          "accuracy": 3,
+          "completeness": 4,
+          "relevance": 5
+        },
+        "answer": "The `CliRunner.isolation` context manager is implemented as a method in the `CliRunner` class in `testing.py` at line 280.\n\nIt mocks the following global state:\n\n**System streams:**\n- `sys.stdin`, `sys.stdout`, `sys.stderr` - replaced with custom `_NamedTextIOWrapper` instances\n\n**Environment variables:**\n- `os.environ` - updated with provided overrides\n\n**Click internal functions:**\n- `termui.visible_prompt_func` - replaced with custom `visible_input` function\n- `termui.hidden_prompt_func` - replaced with custom `hidden_input` function  \n- `termui._getchar` - replaced with custom `_getchar` function\n\n**Utility functions:**\n- `utils.should_strip_ansi` - replaced with custom `should_strip_ansi` function\n- `_compat.should_strip_ansi` - replaced with custom `should_strip_ansi` function\n\n**Formatting:**\n- `formatting.FORCED_WIDTH` - set to 80\n\nAll original values are restored in the `finally` block when the context manager exits."
+      },
+      "raw": {
+        "context_tokens": 4237,
+        "response_tokens": 236,
+        "context_build_time": 0.002,
+        "answer_latency": 7.135,
+        "scores": {
+          "accuracy": 4,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "The `CliRunner.isolation` context manager is implemented in the `testing.py` file as a method of the `CliRunner` class.\n\nIt mocks the following global state:\n\n**System streams:**\n- `sys.stdin`, `sys.stdout`, `sys.stderr` - replaced with `_NamedTextIOWrapper` instances\n\n**Environment:**\n- `os.environ` - updated with provided environment overrides\n\n**Click internals:**\n- `termui.visible_prompt_func` - replaced with local `visible_input` function\n- `termui.hidden_prompt_func` - replaced with local `hidden_input` function  \n- `termui._getchar` - replaced with local `_getchar` function\n- `utils.should_strip_ansi` - replaced with local `should_strip_ansi` function\n- `_compat.should_strip_ansi` - replaced with local `should_strip_ansi` function\n\n**Formatting:**\n- `formatting.FORCED_WIDTH` - set to 80\n\nThe context manager uses a `StreamMixer` to capture and mix stdout/stderr output, and all original values are restored in the `finally` block when the context exits."
+      },
+      "token_savings_pct": -1.7,
+      "judge_order": "raw_first"
+    },
+    {
+      "question_id": 9,
+      "run_id": 1,
+      "category": "navigation",
+      "question": "Where is shell completion for the Bash shell implemented, and what class provides the Bash-specific completion logic?",
+      "symdex": {
+        "context_tokens": 4828,
+        "response_tokens": 151,
+        "context_build_time": 0.026,
+        "answer_latency": 6.728,
+        "scores": {
+          "accuracy": 5,
+          "completeness": 4,
+          "relevance": 5
+        },
+        "answer": "Shell completion for the Bash shell is implemented in the **BashComplete class** located in **shell_completion.py at line 304**.\n\nThe BashComplete class provides Bash-specific completion logic by:\n- Setting `name = \"bash\"` to register as the bash completion handler\n- Using `source_template = _SOURCE_BASH` (which references the `_SOURCE_BASH` constant from line 95)\n- Implementing `get_completion_args()` method to parse Bash's `COMP_WORDS` and `COMP_CWORD` environment variables\n- Implementing `format_completion()` method to format completions as `\"{item.type},{item.value}\"`\n- Including a `_check_version()` method to verify Bash version compatibility (requires Bash >= 4.4)"
+      },
+      "raw": {
+        "context_tokens": 4736,
+        "response_tokens": 174,
+        "context_build_time": 0.003,
+        "answer_latency": 9.841,
+        "scores": {
+          "accuracy": 5,
+          "completeness": 4,
+          "relevance": 5
+        },
+        "answer": "Based on the provided context, shell completion for the Bash shell is implemented in the `BashComplete` class in the `shell_completion.py` file.\n\nThe `BashComplete` class:\n- Inherits from `ShellComplete` \n- Has `name = \"bash\"`\n- Uses `source_template = _SOURCE_BASH` for the completion script template\n- Implements Bash-specific methods:\n  - `get_completion_args()` - parses `COMP_WORDS` and `COMP_CWORD` environment variables\n  - `format_completion()` - formats completion items as `\"{item.type},{item.value}\"`\n  - `source()` - calls `_check_version()` to verify Bash version compatibility\n  - `_check_version()` - ensures Bash version is 4.4 or newer\n\nThe class is registered in the `_available_shells` dictionary as `\"bash\": BashComplete`."
+      },
+      "token_savings_pct": -1.9,
+      "judge_order": "raw_first"
+    },
+    {
+      "question_id": 10,
+      "run_id": 1,
+      "category": "navigation",
+      "question": "Where is the `HelpFormatter.write_dl` method implemented, and how does it handle definition lists that are too wide?",
+      "symdex": {
+        "context_tokens": 2214,
+        "response_tokens": 233,
+        "context_build_time": 0.025,
+        "answer_latency": 5.983,
+        "scores": {
+          "accuracy": 4,
+          "completeness": 4,
+          "relevance": 5
+        },
+        "answer": "The `HelpFormatter.write_dl` method is implemented in `formatting.py` starting at line 210.\n\nWhen handling definition lists that are too wide, the method uses this logic:\n\n1. It measures column widths using the `measure_table` function (from `formatting.py` line 14)\n2. It limits the first column to `col_max` (default 30) plus `col_spacing` (default 2)\n3. For each row, if the first column text length exceeds `first_col - col_spacing`, it:\n   - Writes the first column text on its own line\n   - Adds a newline (`\\write(\"\\n\")`)\n   - Indents the second column content on the next line with spaces: `\" \" * (first_col + self.current_indent)`\n\n4. It wraps the second column text using `wrap_text` with a calculated `text_width` of `max(self.width - first_col - 2, 10)` to ensure it fits within the available space.\n\nThis prevents the definition list from exceeding the formatter's width by breaking long first column entries onto separate lines and properly indenting the corresponding descriptions."
+      },
+      "raw": {
+        "context_tokens": 2158,
+        "response_tokens": 234,
+        "context_build_time": 0.001,
+        "answer_latency": 7.734,
+        "scores": {
+          "accuracy": 4,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "The `HelpFormatter.write_dl` method is implemented in `formatting.py` starting at line 162.\n\nWhen handling definition lists that are too wide, it uses this logic:\n\n1. **Column width calculation**: It limits the first column to `min(widths[0], col_max) + col_spacing` where `col_max` defaults to 30.\n\n2. **Width overflow handling**: If `term_len(first) <= first_col - col_spacing`, it places the second column on the same line. Otherwise, it puts the second column on the next line with proper indentation.\n\n3. **Text wrapping**: For the second column, it calculates `text_width = max(self.width - first_col - 2, 10)` and uses `wrap_text(second, text_width, preserve_paragraphs=True)` to wrap long content.\n\n4. **Multi-line formatting**: When the second column spans multiple lines, it writes the first line immediately after the spacing, then writes subsequent lines with indentation of `first_col + self.current_indent` spaces.\n\nThis ensures definition lists remain readable even when the first column exceeds the maximum width by moving the description to the next line."
+      },
+      "token_savings_pct": -2.6,
+      "judge_order": "symdex_first"
+    },
+    {
+      "question_id": 11,
+      "run_id": 1,
+      "category": "navigation",
+      "question": "Where is the `Option._parse_decls` method, and how does it extract the parameter name from option declarations like '--verbose/-v'?",
+      "symdex": {
+        "context_tokens": 28173,
+        "response_tokens": 336,
+        "context_build_time": 0.041,
+        "answer_latency": 12.045,
+        "scores": {
+          "accuracy": 4,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "The `Option._parse_decls` method is located in **core.py at line 2222** (as indicated by the key symbols).\n\nLooking at the method implementation in the `Option` class, here's how it extracts parameter names from option declarations like `'--verbose/-v'`:\n\n1. **Split on separators**: It first determines the split character - uses `\";\"` if the declaration starts with `\"/\"`, otherwise uses `\"/\"`.\n\n2. **Parse slash-separated options**: For declarations like `'--verbose/-v'`, it splits on `\"/\"`:\n   - `first = '--verbose'` (stripped)\n   - `second = '-v'` (stripped)\n   - Both parts are added to `opts` and `secondary_opts` respectively\n\n3. **Extract name candidates**: For each option part, it calls `_split_opt()` (from parser.py line 111) to separate the prefix from the name, storing results in `possible_names`.\n\n4. **Determine final name**: If no explicit name was provided:\n   - Sorts `possible_names` by length (longest first) to prioritize long options\n   - Takes the name part from the first (longest) option: `possible_names[0][1]`\n   - Converts to valid identifier: replaces `\"-\"` with `\"_\"` and converts to lowercase\n   - So `'--verbose'` becomes `'verbose'`\n\nThe method returns a tuple: `(name, opts, secondary_opts)` where `name` is the parameter name used internally, `opts` contains primary option flags, and `secondary_opts` contains alternative flags."
+      },
+      "raw": {
+        "context_tokens": 28100,
+        "response_tokens": 376,
+        "context_build_time": 0.015,
+        "answer_latency": 11.948,
+        "scores": {
+          "accuracy": 4,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "The `Option._parse_decls` method is located in the `Option` class in `core.py` (lines 2644-2695).\n\nHere's how it extracts the parameter name from option declarations like `'--verbose/-v'`:\n\n1. **Splits on slash characters**: It checks if the declaration contains `/` or `;` (for declarations starting with `/`), then splits on that character to separate primary and secondary options.\n\n2. **Parses individual options**: For each option part, it calls `_split_opt()` (imported from `.parser`) to extract the option prefix and name.\n\n3. **Collects possible names**: It builds a `possible_names` list from all the parsed options using `_split_opt()`.\n\n4. **Selects the best name**: If no explicit name was provided as an identifier, it:\n   - Sorts `possible_names` by length (longest first) with `possible_names.sort(key=lambda x: -len(x[0]))`\n   - Takes the name from the first (longest) option: `name = possible_names[0][1]`\n   - Converts it to a valid Python identifier: `name.replace(\"-\", \"_\").lower()`\n\nFor `'--verbose/-v'`, this would:\n- Split into `['--verbose', '-v']`\n- Use `_split_opt()` to get `[('--', 'verbose'), ('-', 'v')]`\n- Sort by prefix length (longest first): `[('--', 'verbose'), ('-', 'v')]`\n- Extract `'verbose'` as the parameter name\n- Convert to `'verbose'` (already valid)\n\nThe method returns a tuple of `(name, opts, secondary_opts)` where `opts` contains the primary options and `secondary_opts` contains any secondary options (like the `-v` part)."
+      },
+      "token_savings_pct": -0.3,
+      "judge_order": "symdex_first"
+    },
+    {
+      "question_id": 12,
+      "run_id": 1,
+      "category": "navigation",
+      "question": "Where is the `CommandCollection` class defined, and how does it look up commands across multiple groups?",
+      "symdex": {
+        "context_tokens": 28162,
+        "response_tokens": 273,
+        "context_build_time": 0.032,
+        "answer_latency": 8.427,
+        "scores": {
+          "accuracy": 4,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "The `CommandCollection` class is defined in **core.py at line 1961**.\n\n## Command Lookup Process\n\n`CommandCollection` looks up commands across multiple groups using this hierarchy:\n\n1. **First checks its own commands** via `super().get_command(ctx, cmd_name)` in the `get_command` method (line 1987+)\n\n2. **Then searches each source group** by iterating through `self.sources` and calling `source.get_command(ctx, cmd_name)` on each one\n\n3. **Returns the first match found** - if a command exists in both the collection itself and a source group, the collection's version takes precedence\n\n## Key Methods\n\n- **`add_source(group: Group)`** (line 1987): Adds a `Group` to the sources list\n- **`get_command(ctx, cmd_name)`**: Implements the lookup logic described above  \n- **`list_commands(ctx)`**: Returns a sorted, deduplicated list of all commands from the collection and all source groups\n\n## Architecture\n\n`CommandCollection` is a subclass of `Group` that \"flattens\" commands from multiple groups into a single interface. The `sources` attribute (line 1977) stores the list of `Group` objects to search, and commands are looked up in registration order until a match is found."
+      },
+      "raw": {
+        "context_tokens": 28100,
+        "response_tokens": 317,
+        "context_build_time": 0.015,
+        "answer_latency": 11.104,
+        "scores": {
+          "accuracy": 4,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "The `CommandCollection` class is defined in **core.py** starting at line 2847.\n\n## Command Lookup Mechanism\n\n`CommandCollection` looks up commands across multiple groups through its `get_command` method:\n\n```python\ndef get_command(self, ctx: Context, cmd_name: str) -> Command | None:\n    rv = super().get_command(ctx, cmd_name)\n\n    if rv is not None:\n        return rv\n\n    for source in self.sources:\n        rv = source.get_command(ctx, cmd_name)\n\n        if rv is not None:\n            if self.chain:\n                _check_nested_chain(self, cmd_name, rv)\n\n            return rv\n\n    return None\n```\n\n## Lookup Order\n\n1. **First**: Checks its own commands using `super().get_command()` (inherited from `Group`)\n2. **Then**: Iterates through each registered source group in `self.sources` list\n3. **Returns**: The first matching command found, or `None` if not found in any source\n\n## Key Features\n\n- **sources**: A list of `Group` objects to look up commands from\n- **add_source()**: Method to register additional groups as command sources\n- **Flattening behavior**: Commands from multiple groups appear as if they belong to this single group\n- **No parameter inheritance**: Source group parameters are not added to the collection\n- **No callback invocation**: Source group callbacks are not called when invoking their commands\n\nThe class effectively \"flattens\" commands from many groups into one unified command interface."
+      },
+      "token_savings_pct": -0.2,
+      "judge_order": "symdex_first"
+    },
+    {
+      "question_id": 13,
+      "run_id": 1,
+      "category": "navigation",
+      "question": "Where are the exception classes defined that Click uses for different error scenarios, and what is the inheritance hierarchy?",
+      "symdex": {
+        "context_tokens": 2305,
+        "response_tokens": 258,
+        "context_build_time": 0.024,
+        "answer_latency": 6.358,
+        "scores": {
+          "accuracy": 4,
+          "completeness": 4,
+          "relevance": 5
+        },
+        "answer": "The exception classes are defined in **exceptions.py** with the following inheritance hierarchy:\n\n**Base Exception Classes:**\n- `ClickException` (line 26) - Base class for all Click exceptions that can be shown to users\n- `UsageError` (line 56) - Inherits from `ClickException`, signals usage errors\n\n**Parameter-related Exceptions:**\n- `BadParameter` (line 95) - Inherits from `UsageError`, for standardized bad parameter errors\n- `MissingParameter` (line 137) - Inherits from `BadParameter`, for required but missing parameters\n\n**Other Usage Exceptions (inherit from UsageError):**\n- `NoSuchOption` - For non-existent options\n- `BadOptionUsage` - For incorrect option usage\n- `BadArgumentUsage` - For incorrect argument usage\n- `NoArgsIsHelpError` - When no args triggers help\n\n**Other Exception Classes:**\n- `FileError` - Inherits from `ClickException`, for file operation errors\n- `Abort` - Inherits from `RuntimeError`, internal signaling exception\n- `Exit` - Inherits from `RuntimeError`, for controlled application exit\n\nThe main hierarchy is: `ClickException` \u2192 `UsageError` \u2192 `BadParameter` \u2192 `MissingParameter`"
+      },
+      "raw": {
+        "context_tokens": 2236,
+        "response_tokens": 257,
+        "context_build_time": 0.001,
+        "answer_latency": 5.286,
+        "scores": {
+          "accuracy": 5,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "The exception classes are defined in `exceptions.py`. Here's the inheritance hierarchy:\n\n**Base Exception Classes:**\n- `ClickException(Exception)` - Base class for user-facing exceptions with `exit_code = 1`\n- `UsageError(ClickException)` - For usage errors with `exit_code = 2`\n\n**Parameter-related Exceptions:**\n- `BadParameter(UsageError)` - For invalid parameter values\n- `MissingParameter(BadParameter)` - For required but missing parameters\n\n**Option/Argument Exceptions:**\n- `NoSuchOption(UsageError)` - For non-existent options\n- `BadOptionUsage(UsageError)` - For incorrect option usage\n- `BadArgumentUsage(UsageError)` - For incorrect argument usage\n\n**Other Exceptions:**\n- `NoArgsIsHelpError(UsageError)` - When no args triggers help display\n- `FileError(ClickException)` - For file operation errors\n- `Abort(RuntimeError)` - Internal signal to abort execution\n- `Exit(RuntimeError)` - For controlled application exit with status code\n\nThe hierarchy flows: `Exception` \u2192 `ClickException` \u2192 `UsageError` \u2192 specific error types, with `Abort` and `Exit` inheriting directly from `RuntimeError` for internal signaling."
+      },
+      "token_savings_pct": -3.1,
+      "judge_order": "symdex_first"
+    },
+    {
+      "question_id": 14,
+      "run_id": 1,
+      "category": "navigation",
+      "question": "Where is the `pass_context` decorator implemented, and how does it inject the current context into the callback?",
+      "symdex": {
+        "context_tokens": 4531,
+        "response_tokens": 221,
+        "context_build_time": 0.026,
+        "answer_latency": 7.705,
+        "scores": {
+          "accuracy": 5,
+          "completeness": 4,
+          "relevance": 5
+        },
+        "answer": "The `pass_context` decorator is implemented in **decorators.py at line 28**.\n\nIt injects the current context by:\n\n1. **Getting the current context**: It calls `get_current_context()` (from globals.py line 13) to retrieve the active context\n2. **Wrapping the original function**: It creates a `new_func` that automatically prepends the context as the first argument\n3. **Injecting the context**: When the wrapped function is called, it executes `f(get_current_context(), *args, **kwargs)`, passing the context as the first parameter before any other arguments\n\nThe implementation:\n```python\ndef pass_context(f: t.Callable[te.Concatenate[Context, P], R]) -> t.Callable[P, R]:\n    def new_func(*args: P.args, **kwargs: P.kwargs) -> R:\n        return f(get_current_context(), *args, **kwargs)\n    return update_wrapper(new_func, f)\n```\n\nThis allows decorated callback functions to receive the current `Context` object automatically without having to manually retrieve it."
+      },
+      "raw": {
+        "context_tokens": 4474,
+        "response_tokens": 214,
+        "context_build_time": 0.002,
+        "answer_latency": 8.117,
+        "scores": {
+          "accuracy": 5,
+          "completeness": 4,
+          "relevance": 5
+        },
+        "answer": "The `pass_context` decorator is implemented in `decorators.py` at lines 29-36.\n\nIt injects the current context by:\n\n1. **Getting the current context**: Uses `get_current_context()` from `.globals` to retrieve the active context\n2. **Wrapping the original function**: Creates a `new_func` that calls the original function `f` with the context as the first argument\n3. **Preserving function metadata**: Uses `update_wrapper(new_func, f)` to maintain the original function's attributes\n\nThe implementation:\n```python\ndef pass_context(f: t.Callable[te.Concatenate[Context, P], R]) -> t.Callable[P, R]:\n    def new_func(*args: P.args, **kwargs: P.kwargs) -> R:\n        return f(get_current_context(), *args, **kwargs)\n    return update_wrapper(new_func, f)\n```\n\nWhen the decorated function is called, `new_func` automatically prepends the current `Context` object to the arguments before calling the original callback function."
+      },
+      "token_savings_pct": -1.3,
+      "judge_order": "symdex_first"
+    },
+    {
+      "question_id": 15,
+      "run_id": 1,
+      "category": "modification",
+      "question": "How would you add a new built-in parameter type (e.g., an EmailParamType) to Click's type system?",
+      "symdex": {
+        "context_tokens": 9089,
+        "response_tokens": 347,
+        "context_build_time": 0.027,
+        "answer_latency": 8.915,
+        "scores": {
+          "accuracy": 3,
+          "completeness": 4,
+          "relevance": 5
+        },
+        "answer": "To add a new built-in parameter type like `EmailParamType` to Click's type system, you would:\n\n1. **Create the parameter type class** by inheriting from `ParamType` (line 30 in types.py):\n\n```python\nclass EmailParamType(ParamType):\n    name = \"email\"\n    \n    def convert(self, value: t.Any, param: Parameter | None, ctx: Context | None) -> str:\n        if isinstance(value, str):\n            # Basic email validation logic\n            if \"@\" in value and \".\" in value.split(\"@\")[-1]:\n                return value\n            else:\n                self.fail(f\"{value!r} is not a valid email address\", param, ctx)\n        return str(value)\n    \n    def __repr__(self) -> str:\n        return \"EMAIL\"\n```\n\n2. **Create a constant instance** at the bottom of types.py (following the pattern of `STRING` at line 1187):\n\n```python\n#: An email parameter type.\nEMAIL = EmailParamType()\n```\n\n3. **Integrate with the type conversion system** by modifying the `convert_type` function (line 1112) to recognize email types if needed, though this is optional for basic usage.\n\nThe key requirements are:\n- Set the `name` class attribute\n- Implement the `convert` method to validate and convert values\n- Handle the case where `ctx` and `param` might be `None`\n- Use `self.fail()` for validation errors\n- Follow the existing pattern of creating a constant instance for easy import\n\nUsers could then use it as `@click.option('--email', type=click.EMAIL)` or `type=EMAIL`."
+      },
+      "raw": {
+        "context_tokens": 9006,
+        "response_tokens": 358,
+        "context_build_time": 0.005,
+        "answer_latency": 8.817,
+        "scores": {
+          "accuracy": 4,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "To add a new built-in parameter type like `EmailParamType` to Click's type system, you would:\n\n1. **Create the parameter type class** in `types.py` by subclassing `ParamType`:\n\n```python\nclass EmailParamType(ParamType):\n    name = \"email\"\n    \n    def convert(\n        self, value: t.Any, param: Parameter | None, ctx: Context | None\n    ) -> str:\n        if isinstance(value, str):\n            # Basic email validation (you'd want more robust validation)\n            if \"@\" in value and \".\" in value.split(\"@\")[-1]:\n                return value\n        \n        self.fail(\n            _(\"{value!r} is not a valid email address.\").format(value=value),\n            param,\n            ctx,\n        )\n    \n    def __repr__(self) -> str:\n        return \"EMAIL\"\n```\n\n2. **Create a module-level instance** at the bottom of `types.py`:\n\n```python\n#: An email address parameter type.\nEMAIL = EmailParamType()\n```\n\n3. **Update the `convert_type()` function** in `types.py` to handle automatic type inference if needed (optional).\n\n4. **Export it** by adding `EMAIL` to the module's `__all__` list or importing it in `__init__.py`.\n\nThe key requirements are:\n- Set the `name` class attribute\n- Implement `convert()` method that handles conversion and validation\n- Call `self.fail()` with descriptive error messages for invalid values\n- Handle the case where `ctx` and `param` might be `None`\n- Implement `__repr__()` for debugging\n\nUsers could then use it as `@click.option('--email', type=click.EMAIL)`."
+      },
+      "token_savings_pct": -0.9,
+      "judge_order": "raw_first"
+    },
+    {
+      "question_id": 16,
+      "run_id": 1,
+      "category": "modification",
+      "question": "How would you modify Click to support a new shell (e.g., PowerShell) for tab completion?",
+      "symdex": {
+        "context_tokens": 4825,
+        "response_tokens": 329,
+        "context_build_time": 0.025,
+        "answer_latency": 9.057,
+        "scores": {
+          "accuracy": 3,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "To add PowerShell support to Click's shell completion system, you would need to:\n\n1. **Create a PowerShell completion class** by subclassing `ShellComplete` (from `shell_completion.py` line 200):\n\n```python\nclass PowerShellComplete(ShellComplete):\n    name = \"powershell\"\n    source_template = _SOURCE_POWERSHELL  # Define PowerShell script template\n    \n    def get_completion_args(self) -> tuple[list[str], str]:\n        # Parse PowerShell-specific environment variables\n        # Similar to how BashComplete, ZshComplete, FishComplete do it\n        pass\n    \n    def format_completion(self, item: CompletionItem) -> str:\n        # Format completion items for PowerShell's expected format\n        pass\n```\n\n2. **Define the PowerShell script template** (`_SOURCE_POWERSHELL`) that:\n   - Sets up the completion function in PowerShell syntax\n   - Uses the same environment variable pattern as other shells\n   - Calls your CLI with `powershell_complete` instruction\n\n3. **Register the new completion class** using the `add_completion_class` function (line 436):\n\n```python\nadd_completion_class(PowerShellComplete)\n```\n\nThis would automatically add \"powershell\" to the `_available_shells` dictionary, making it available through `get_completion_class` (line 456). The existing `shell_complete` function would then handle `powershell_source` and `powershell_complete` instructions without modification.\n\nThe key methods to implement are `get_completion_args()` to parse PowerShell's completion environment variables, and `format_completion()` to output completions in PowerShell's expected format."
+      },
+      "raw": {
+        "context_tokens": 4736,
+        "response_tokens": 335,
+        "context_build_time": 0.003,
+        "answer_latency": 8.102,
+        "scores": {
+          "accuracy": 4,
+          "completeness": 4,
+          "relevance": 5
+        },
+        "answer": "To add PowerShell support to Click's shell completion system, you need to:\n\n1. **Create a PowerShell completion class** by subclassing `ShellComplete`:\n\n```python\nclass PowerShellComplete(ShellComplete):\n    name = \"powershell\"\n    source_template = _SOURCE_POWERSHELL  # Define PowerShell script template\n    \n    def get_completion_args(self) -> tuple[list[str], str]:\n        # Parse PowerShell-specific environment variables\n        # Similar to how BashComplete uses COMP_WORDS/COMP_CWORD\n        pass\n    \n    def format_completion(self, item: CompletionItem) -> str:\n        # Format CompletionItem for PowerShell's expected format\n        pass\n```\n\n2. **Define the PowerShell script template** (`_SOURCE_POWERSHELL`) that:\n   - Sets up environment variables with command line state\n   - Calls your CLI with `powershell_complete` instruction\n   - Processes the returned completions\n\n3. **Register the new shell** using `add_completion_class()`:\n\n```python\nadd_completion_class(PowerShellComplete)\n```\n\nThe key files to modify are in `shell_completion.py`:\n- Add your `PowerShellComplete` class alongside `BashComplete`, `ZshComplete`, `FishComplete`\n- Add the PowerShell script template alongside `_SOURCE_BASH`, `_SOURCE_ZSH`, `_SOURCE_FISH`\n- The class will automatically be available via `get_completion_class(\"powershell\")` and work with the existing `shell_complete()` function\n\nThe `shell_complete()` function in `shell_completion.py` will automatically handle `powershell_source` and `powershell_complete` instructions once your class is registered."
+      },
+      "token_savings_pct": -1.9,
+      "judge_order": "symdex_first"
+    },
+    {
+      "question_id": 17,
+      "run_id": 1,
+      "category": "modification",
+      "question": "How would you modify Click's help formatting to add a custom section (e.g., 'Examples') to every command's help output?",
+      "symdex": {
+        "context_tokens": 30348,
+        "response_tokens": 427,
+        "context_build_time": 0.04,
+        "answer_latency": 9.186,
+        "scores": {
+          "accuracy": 4,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "To add a custom section like 'Examples' to every command's help output in Click, you need to override the `format_help` method in the `Command` class. Here's how:\n\n## Method 1: Custom Command Class\n\n```python\nclass CommandWithExamples(Command):\n    def __init__(self, *args, examples=None, **kwargs):\n        super().__init__(*args, **kwargs)\n        self.examples = examples or []\n    \n    def format_help(self, ctx: Context, formatter: HelpFormatter) -> None:\n        # Call the original format_help methods\n        self.format_usage(ctx, formatter)\n        self.format_help_text(ctx, formatter)\n        self.format_options(ctx, formatter)\n        \n        # Add custom Examples section\n        if self.examples:\n            with formatter.section(\"Examples\"):\n                for example in self.examples:\n                    formatter.write_text(example)\n        \n        # Add epilog last\n        self.format_epilog(ctx, formatter)\n```\n\n## Method 2: Override format_help Directly\n\n```python\ndef custom_format_help(self, ctx: Context, formatter: HelpFormatter) -> None:\n    self.format_usage(ctx, formatter)\n    self.format_help_text(ctx, formatter)\n    self.format_options(ctx, formatter)\n    \n    # Add Examples section\n    if hasattr(self, 'examples') and self.examples:\n        with formatter.section(\"Examples\"):\n            for example in self.examples:\n                formatter.write_text(example)\n    \n    self.format_epilog(ctx, formatter)\n\n# Monkey patch the Command class\nCommand.format_help = custom_format_help\n```\n\n## Usage\n\n```python\n@click.command(cls=CommandWithExamples, examples=[\n    \"mycommand --option value\",\n    \"mycommand --verbose input.txt\"\n])\ndef mycommand():\n    pass\n```\n\nThe key is using `formatter.section(\"Examples\")` (from `formatting.py` line 255) to create the section header and `formatter.write_text()` to add the content, following the same pattern used in `format_options` (line 1793) and `format_epilog` (line 1173)."
+      },
+      "raw": {
+        "context_tokens": 30259,
+        "response_tokens": 370,
+        "context_build_time": 0.016,
+        "answer_latency": 9.624,
+        "scores": {
+          "accuracy": 3,
+          "completeness": 3,
+          "relevance": 4
+        },
+        "answer": "To add a custom section like 'Examples' to every command's help output in Click, you need to override the `format_help` method in a custom `Command` class and set a custom `formatter_class` on the `Context`:\n\n```python\nimport click\nfrom click.formatting import HelpFormatter\n\nclass ExampleHelpFormatter(HelpFormatter):\n    def write_examples(self, examples):\n        \"\"\"Write an examples section.\"\"\"\n        if examples:\n            with self.section(\"Examples\"):\n                self.write_text(examples)\n\nclass CommandWithExamples(click.Command):\n    def __init__(self, *args, examples=None, **kwargs):\n        super().__init__(*args, **kwargs)\n        self.examples = examples\n    \n    def format_help(self, ctx, formatter):\n        \"\"\"Override to add examples section after standard help.\"\"\"\n        super().format_help(ctx, formatter)\n        if hasattr(formatter, 'write_examples') and self.examples:\n            formatter.write_examples(self.examples)\n\n# Usage\n@click.command(cls=CommandWithExamples, examples=\"$ mycommand --option value\\n$ mycommand --help\")\n@click.option('--option')\ndef mycommand(option):\n    \"\"\"My command description.\"\"\"\n    pass\n\n# Set custom formatter globally\n@click.group()\n@click.pass_context\ndef cli(ctx):\n    ctx.formatter_class = ExampleHelpFormatter\n```\n\nKey components:\n- **Custom `HelpFormatter`**: Extend `HelpFormatter` with a `write_examples()` method that uses the existing `section()` context manager\n- **Custom `Command` class**: Override `format_help()` to call the parent method then add your custom section\n- **Context integration**: Set `formatter_class` on the `Context` to use your custom formatter globally\n\nThe `HelpFormatter.section()` method handles proper indentation and formatting, and `write_text()` handles text wrapping and paragraph preservation."
+      },
+      "token_savings_pct": -0.3,
+      "judge_order": "symdex_first"
+    },
+    {
+      "question_id": 18,
+      "run_id": 1,
+      "category": "modification",
+      "question": "How would you modify Click to support a new parameter value source (e.g., reading defaults from a TOML config file) that takes precedence over the default but not the command line?",
+      "symdex": {
+        "context_tokens": 28171,
+        "response_tokens": 483,
+        "context_build_time": 0.036,
+        "answer_latency": 11.276,
+        "scores": {
+          "accuracy": 3,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "To add a new parameter value source for TOML config files with precedence between default and command line, you would need to:\n\n1. **Extend the `ParameterSource` enum** in `core.py` line 143:\n```python\nclass ParameterSource(enum.Enum):\n    COMMANDLINE = enum.auto()\n    ENVIRONMENT = enum.auto()\n    DEFAULT = enum.auto()\n    DEFAULT_MAP = enum.auto()\n    PROMPT = enum.auto()\n    TOML_CONFIG = enum.auto()  # Add this\n```\n\n2. **Modify the `consume_value` method** in `core.py` line 2294 to check for TOML config values in the correct precedence order:\n```python\ndef consume_value(self, ctx: Context, opts: cabc.Mapping[str, t.Any]) -> tuple[t.Any, ParameterSource]:\n    # ... existing code for COMMANDLINE ...\n    \n    if value is UNSET:\n        envvar_value = self.value_from_envvar(ctx)\n        if envvar_value is not None:\n            value = envvar_value\n            source = ParameterSource.ENVIRONMENT\n\n    if value is UNSET:\n        toml_value = self.value_from_toml_config(ctx)  # New method\n        if toml_value is not UNSET:\n            value = toml_value\n            source = ParameterSource.TOML_CONFIG\n\n    if value is UNSET:\n        default_map_value = ctx.lookup_default(self.name)\n        # ... rest of existing code ...\n```\n\n3. **Add a new method to the `Parameter` class** to read from TOML config:\n```python\ndef value_from_toml_config(self, ctx: Context) -> t.Any:\n    \"\"\"Read parameter value from TOML config file if available.\"\"\"\n    # Implementation would read from a TOML file path stored in context\n    # and return the value for this parameter's name, or UNSET if not found\n```\n\n4. **Update the `Context.__init__` method** in `core.py` line 273 to accept a TOML config file path parameter and store it as an instance attribute.\n\n5. **Update the `set_parameter_source` method** in `core.py` line 845 to handle the new source type when tracking parameter sources.\n\nThis approach maintains the existing precedence order while inserting TOML config between environment variables and the default map, as specified."
+      },
+      "raw": {
+        "context_tokens": 28100,
+        "response_tokens": 457,
+        "context_build_time": 0.015,
+        "answer_latency": 10.258,
+        "scores": {
+          "accuracy": 4,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "To add a new parameter value source for TOML config files in Click, you need to:\n\n1. **Extend the `ParameterSource` enum** in `core.py`:\n```python\nclass ParameterSource(enum.Enum):\n    COMMANDLINE = enum.auto()\n    ENVIRONMENT = enum.auto()\n    DEFAULT = enum.auto()\n    DEFAULT_MAP = enum.auto()\n    PROMPT = enum.auto()\n    TOML_CONFIG = enum.auto()  # Add this\n```\n\n2. **Modify the `Parameter.consume_value` method** in `core.py` to check for TOML config values in the correct precedence order. Insert the TOML check between environment variables and default_map:\n\n```python\ndef consume_value(\n    self, ctx: Context, opts: cabc.Mapping[str, t.Any]\n) -> tuple[t.Any, ParameterSource]:\n    # ... existing code for COMMANDLINE and ENVIRONMENT ...\n    \n    if value is UNSET:\n        # Add TOML config check here\n        toml_value = self.value_from_toml_config(ctx)\n        if toml_value is not UNSET:\n            value = toml_value\n            source = ParameterSource.TOML_CONFIG\n    \n    if value is UNSET:\n        default_map_value = ctx.lookup_default(self.name)\n        # ... rest of existing code ...\n```\n\n3. **Add a `value_from_toml_config` method** to the `Parameter` class:\n```python\ndef value_from_toml_config(self, ctx: Context) -> t.Any:\n    \"\"\"Get parameter value from TOML config file if available.\"\"\"\n    # Implementation to read from TOML config\n    # Return UNSET if not found\n    pass\n```\n\n4. **Extend the `Context` class** to store TOML config data, similar to how `default_map` works:\n```python\ndef __init__(self, ...):\n    # ... existing code ...\n    self.toml_config: dict[str, t.Any] | None = toml_config\n```\n\nThis approach maintains Click's existing precedence order: COMMANDLINE > ENVIRONMENT > TOML_CONFIG > DEFAULT_MAP > DEFAULT, and integrates cleanly with the existing parameter processing pipeline in `iter_params_for_processing` and `Parameter.handle_parse_result`."
+      },
+      "token_savings_pct": -0.3,
+      "judge_order": "raw_first"
+    },
+    {
+      "question_id": 19,
+      "run_id": 1,
+      "category": "modification",
+      "question": "How would you modify Click's CliRunner to capture timing information for command execution?",
+      "symdex": {
+        "context_tokens": 4317,
+        "response_tokens": 446,
+        "context_build_time": 0.025,
+        "answer_latency": 9.758,
+        "scores": {
+          "accuracy": 3,
+          "completeness": 4,
+          "relevance": 5
+        },
+        "answer": "To modify Click's `CliRunner` to capture timing information, you would need to modify the `invoke` method in the `CliRunner` class (testing.py line 433) and the `Result` class (testing.py line 151):\n\n1. **Modify the `Result` class** to include timing attributes:\n```python\nclass Result:\n    def __init__(\n        self,\n        runner: CliRunner,\n        stdout_bytes: bytes,\n        stderr_bytes: bytes,\n        output_bytes: bytes,\n        return_value: t.Any,\n        exit_code: int,\n        exception: BaseException | None,\n        exc_info: tuple[type[BaseException], BaseException, TracebackType] | None = None,\n        start_time: float | None = None,\n        end_time: float | None = None,\n    ):\n        # ... existing attributes ...\n        self.start_time = start_time\n        self.end_time = end_time\n    \n    @property\n    def elapsed(self) -> float | None:\n        if self.start_time is not None and self.end_time is not None:\n            return self.end_time - self.start_time\n        return None\n```\n\n2. **Modify the `invoke` method** in `CliRunner` to capture timing:\n```python\ndef invoke(self, cli: Command, args: str | cabc.Sequence[str] | None = None, ...):\n    import time\n    \n    with self.isolation(input=input, env=env, color=color) as outstreams:\n        start_time = time.perf_counter()\n        # ... existing variable initialization ...\n        \n        try:\n            return_value = cli.main(args=args or (), prog_name=prog_name, **extra)\n        except SystemExit as e:\n            # ... existing exception handling ...\n        except Exception as e:\n            # ... existing exception handling ...\n        finally:\n            end_time = time.perf_counter()\n            # ... existing cleanup ...\n    \n    return Result(\n        # ... existing parameters ...\n        start_time=start_time,\n        end_time=end_time,\n    )\n```\n\nThis approach captures timing around the `cli.main()` call execution and makes the timing data available through the `Result` object's `elapsed` property."
+      },
+      "raw": {
+        "context_tokens": 4237,
+        "response_tokens": 474,
+        "context_build_time": 0.002,
+        "answer_latency": 10.25,
+        "scores": {
+          "accuracy": 5,
+          "completeness": 5,
+          "relevance": 5
+        },
+        "answer": "To modify Click's `CliRunner` to capture timing information, you would need to add timing measurements around the command execution in the `invoke` method in `testing.py`. Here's how:\n\n1. **Add timing attributes to the `Result` class**:\n```python\nclass Result:\n    def __init__(\n        self,\n        runner: CliRunner,\n        stdout_bytes: bytes,\n        stderr_bytes: bytes,\n        output_bytes: bytes,\n        return_value: t.Any,\n        exit_code: int,\n        exception: BaseException | None,\n        exc_info: tuple[type[BaseException], BaseException, TracebackType] | None = None,\n        execution_time: float | None = None,  # Add this\n    ):\n        # ... existing attributes ...\n        self.execution_time = execution_time\n```\n\n2. **Modify the `invoke` method in `CliRunner`** to capture timing:\n```python\ndef invoke(self, cli: Command, args: str | cabc.Sequence[str] | None = None, ...):\n    import time  # Add import at top of method\n    \n    with self.isolation(input=input, env=env, color=color) as outstreams:\n        return_value = None\n        exception: BaseException | None = None\n        exit_code = 0\n        start_time = time.perf_counter()  # Start timing\n        \n        # ... existing args processing ...\n        \n        try:\n            return_value = cli.main(args=args or (), prog_name=prog_name, **extra)\n        except SystemExit as e:\n            # ... existing SystemExit handling ...\n        except Exception as e:\n            # ... existing Exception handling ...\n        finally:\n            end_time = time.perf_counter()  # End timing\n            execution_time = end_time - start_time\n            # ... existing cleanup ...\n            \n    return Result(\n        runner=self,\n        stdout_bytes=stdout,\n        stderr_bytes=stderr,\n        output_bytes=output,\n        return_value=return_value,\n        exit_code=exit_code,\n        exception=exception,\n        exc_info=exc_info,\n        execution_time=execution_time,  # Add this\n    )\n```\n\nThis approach captures the execution time from just before `cli.main()` is called until after it completes, providing accurate timing information for the command execution while preserving all existing functionality."
+      },
+      "token_savings_pct": -1.9,
+      "judge_order": "raw_first"
+    },
+    {
+      "question_id": 20,
+      "run_id": 1,
+      "category": "modification",
+      "question": "How would you add support for mutually exclusive options in Click?",
+      "symdex": {
+        "context_tokens": 28196,
+        "response_tokens": 600,
+        "context_build_time": 0.035,
+        "answer_latency": 14.966,
+        "scores": {
+          "accuracy": 3,
+          "completeness": 3,
+          "relevance": 4
+        },
+        "answer": "To add support for mutually exclusive options in Click, you would need to implement a validation mechanism that checks for conflicting options after parsing. Here's how you could approach it:\n\n## 1. Create a MutuallyExclusiveGroup class\n\n```python\nclass MutuallyExclusiveGroup:\n    def __init__(self, *options: str, required: bool = False):\n        self.options = set(options)\n        self.required = required\n    \n    def validate(self, ctx: Context) -> None:\n        provided = {name for name in self.options if ctx.params.get(name)}\n        \n        if len(provided) > 1:\n            opts_str = \", \".join(f\"--{name.replace('_', '-')}\" for name in provided)\n            ctx.fail(f\"Options {opts_str} are mutually exclusive.\")\n        \n        if self.required and not provided:\n            opts_str = \", \".join(f\"--{name.replace('_', '-')}\" for name in self.options)\n            ctx.fail(f\"One of {opts_str} is required.\")\n```\n\n## 2. Extend Command to support mutual exclusion\n\nYou would need to modify the `Command` class in **core.py** to:\n\n1. Add a `mutually_exclusive_groups` attribute to store groups\n2. Override the `parse_args` method to validate mutual exclusion after parameter processing\n\n```python\n# In Command.__init__\nself.mutually_exclusive_groups: list[MutuallyExclusiveGroup] = []\n\n# Add method to Command class\ndef add_mutually_exclusive_group(self, *options: str, required: bool = False) -> None:\n    group = MutuallyExclusiveGroup(*options, required=required)\n    self.mutually_exclusive_groups.append(group)\n\n# Override parse_args in Command class\ndef parse_args(self, ctx: Context, args: list[str]) -> list[str]:\n    result = super().parse_args(ctx, args)\n    \n    # Validate mutually exclusive groups\n    for group in self.mutually_exclusive_groups:\n        group.validate(ctx)\n    \n    return result\n```\n\n## 3. Create a decorator for easier usage\n\n```python\ndef mutually_exclusive(*options: str, required: bool = False):\n    def decorator(f):\n        if not hasattr(f, '__click_mutually_exclusive__'):\n            f.__click_mutually_exclusive__ = []\n        f.__click_mutually_exclusive__.append((options, required))\n        return f\n    return decorator\n```\n\n## 4. Integration with the command decorator\n\nThe `@command` decorator in **decorators.py** would need to be modified to process the mutual exclusion metadata and call `add_mutually_exclusive_group` on the created command.\n\nThis approach leverages Click's existing parameter validation infrastructure while adding the mutual exclusion logic at the command level after all parameters have been processed, similar to how the `handle_parse_result` method in the `Option` class (line 2538) processes individual parameter values."
+      },
+      "raw": {
+        "context_tokens": 28100,
+        "response_tokens": 641,
+        "context_build_time": 0.009,
+        "answer_latency": 15.299,
+        "scores": {
+          "accuracy": 4,
+          "completeness": 4,
+          "relevance": 5
+        },
+        "answer": "To add support for mutually exclusive options in Click, you would need to implement a custom parameter validation mechanism. Here's how you could approach it:\n\n## 1. Create a Mutual Exclusion Group Class\n\n```python\nclass MutuallyExclusiveGroup:\n    def __init__(self, *param_names: str, required: bool = False):\n        self.param_names = set(param_names)\n        self.required = required\n    \n    def validate(self, ctx: Context) -> None:\n        # Get parameters that were set from command line (not defaults)\n        set_params = {\n            name for name in self.param_names \n            if (name in ctx.params and \n                ctx.get_parameter_source(name) == ParameterSource.COMMANDLINE)\n        }\n        \n        if len(set_params) > 1:\n            param_list = \", \".join(f\"'{name}'\" for name in sorted(set_params))\n            ctx.fail(f\"Options {param_list} are mutually exclusive.\")\n        \n        if self.required and len(set_params) == 0:\n            param_list = \", \".join(f\"'{name}'\" for name in sorted(self.param_names))\n            ctx.fail(f\"One of {param_list} is required.\")\n```\n\n## 2. Extend Command Class\n\n```python\nclass CommandWithMutualExclusion(Command):\n    def __init__(self, *args, **kwargs):\n        super().__init__(*args, **kwargs)\n        self.mutually_exclusive_groups: list[MutuallyExclusiveGroup] = []\n    \n    def add_mutually_exclusive_group(self, *param_names: str, required: bool = False):\n        group = MutuallyExclusiveGroup(*param_names, required=required)\n        self.mutually_exclusive_groups.append(group)\n        return group\n    \n    def invoke(self, ctx: Context) -> t.Any:\n        # Validate mutual exclusion before invoking callback\n        for group in self.mutually_exclusive_groups:\n            group.validate(ctx)\n        return super().invoke(ctx)\n```\n\n## 3. Usage Example\n\n```python\n@click.command(cls=CommandWithMutualExclusion)\n@click.option('--verbose', '-v', is_flag=True)\n@click.option('--quiet', '-q', is_flag=True)\n@click.option('--format-json', is_flag=True)\n@click.option('--format-xml', is_flag=True)\n@click.pass_context\ndef mycmd(ctx, verbose, quiet, format_json, format_xml):\n    # Add mutual exclusion constraints\n    ctx.command.add_mutually_exclusive_group('verbose', 'quiet')\n    ctx.command.add_mutually_exclusive_group('format_json', 'format_xml', required=True)\n    \n    click.echo(\"Command executed successfully\")\n```\n\n## Key Implementation Points:\n\n1. **Use `ParameterSource.COMMANDLINE`** to distinguish user-provided values from defaults\n2. **Validate in `Command.invoke()`** after parameter parsing but before callback execution\n3. **Access parameter sources via `Context.get_parameter_source()`** method\n4. **Fail with descriptive error messages** using `Context.fail()`\n\nThis approach integrates with Click's existing parameter processing pipeline and provides clear error messages when mutual exclusion constraints are violated."
+      },
+      "token_savings_pct": -0.3,
+      "judge_order": "symdex_first"
+    }
+  ],
+  "summary": {
+    "total_questions": 20,
+    "total_runs": 20,
+    "symdex": {
+      "accuracy_avg": 4.0,
+      "accuracy_stdev": 0.79,
+      "completeness_avg": 4.45,
+      "relevance_avg": 4.9,
+      "avg_context_tokens": 16920.35
+    },
+    "raw": {
+      "accuracy_avg": 4.45,
+      "accuracy_stdev": 0.6,
+      "completeness_avg": 4.7,
+      "relevance_avg": 4.95,
+      "avg_context_tokens": 16849.55
+    },
+    "token_savings_avg": -0.97,
+    "token_savings_stdev": 0.91,
+    "win_loss_tie": {
+      "wins": 1,
+      "losses": 9,
+      "ties": 10
+    },
+    "by_category": {
+      "comprehension": {
+        "symdex_accuracy_avg": 4.57,
+        "raw_accuracy_avg": 4.86,
+        "token_savings_avg": -0.37,
+        "count": 7
+      },
+      "navigation": {
+        "symdex_accuracy_avg": 4.14,
+        "raw_accuracy_avg": 4.43,
+        "token_savings_avg": -1.59,
+        "count": 7
+      },
+      "modification": {
+        "symdex_accuracy_avg": 3.17,
+        "raw_accuracy_avg": 4.0,
+        "token_savings_avg": -0.93,
+        "count": 6
+      }
+    }
+  }
+}
