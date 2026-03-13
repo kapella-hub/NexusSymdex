@@ -1,0 +1,13 @@
+{
+  "name": "nexus-symdex",
+  "owner": {
+    "name": "NexusSymdex"
+  },
+  "plugins": [
+    {
+      "name": "symdex",
+      "source": ".",
+      "description": "Automatic code comprehension for Claude Code — primes sessions with architecture context and injects caller awareness before edits"
+    }
+  ]
+}
