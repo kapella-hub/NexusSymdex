@@ -309,6 +309,59 @@ src/nexus_symdex/
 \-- summarizer/            # AI-powered symbol summaries (optional)
 ```
 
+## Claude Code Plugin (Automatic Coding Intelligence)
+
+NexusSymdex ships with a Claude Code plugin that automatically makes Claude a better coder — no manual tool calls needed. It primes every session with architecture context and reminds Claude to check callers before edits.
+
+### Quick Start
+
+```bash
+# 1. Install NexusSymdex
+git clone https://github.com/morganbarrett/nexus-symdex.git
+cd nexus-symdex
+uv sync
+
+# 2. Register as MCP server (add to ~/.claude/.mcp.json)
+{
+  "mcpServers": {
+    "nexus-symdex": {
+      "command": "<path-to-repo>/.venv/Scripts/nexus-symdex.exe",
+      "args": []
+    }
+  }
+}
+
+# 3. Install the plugin
+claude plugin add <path-to-repo>/claude-plugin
+```
+
+Then, for each project you want intelligence on:
+
+```
+# In Claude Code, just say:
+"Index this project with index_folder"
+```
+
+That's it. Every Claude Code session now gets:
+- **Architecture priming** — Claude calls `get_architecture_map` and `extract_conventions` at session start
+- **Caller awareness** — advisory reminder to check `get_callers`/`get_impact` before modifying public APIs
+- **Self-review** — run `/symdex:self-review` after changes to validate callers and conventions
+
+### What the Plugin Does
+
+| Hook | When | What |
+|------|------|------|
+| SessionStart | Every conversation | Checks if project is indexed, primes Claude with architecture + conventions + coding guidelines |
+| PreToolUse | Every Edit/Write | Injects advisory reminder to check callers before structural changes |
+
+| Skill | Invocation | What |
+|-------|------------|------|
+| Self-review | `/symdex:self-review` | Validates recent changes against callers, dependencies, and conventions |
+
+### Overhead
+
+~3-5k tokens for session priming + ~80 tokens per edit reminder. For a typical 10-edit session, roughly 5% of context window — in exchange for cross-file awareness, convention adherence, and fewer broken references.
+
 ## NexusCortex Integration
 
 When [NexusCortex](https://github.com/morganbarrett/nexus-cortex) is running, nexus-symdex gains persistent code memory:
