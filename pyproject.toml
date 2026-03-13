@@ -29,7 +29,7 @@ build-backend = "hatchling.build"
 packages = ["src/nexus_symdex"]
 
 [tool.hatch.build.targets.sdist]
-exclude = [".claude/"]
+exclude = [".claude/", "claude-plugin/"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
