@@ -69,8 +69,9 @@ def get_symbol(
     context_before = ""
     context_after = ""
     if context_lines > 0 and source:
-        file_path = store._content_dir(owner, name) / symbol["file"]
-        if file_path.exists():
+        file_path = store._safe_content_path(
+            store._content_dir(owner, name), symbol["file"])
+        if file_path and file_path.exists():
             try:
                 all_lines = file_path.read_text(encoding="utf-8", errors="replace").split("\n")
                 start_line = symbol["line"] - 1  # 0-indexed
@@ -93,8 +94,9 @@ def get_symbol(
     # Token savings: raw file size vs symbol byte length
     raw_bytes = 0
     try:
-        raw_file = store._content_dir(owner, name) / symbol["file"]
-        raw_bytes = os.path.getsize(raw_file)
+        raw_file = store._safe_content_path(
+            store._content_dir(owner, name), symbol["file"])
+        raw_bytes = os.path.getsize(raw_file) if raw_file else 0
     except OSError:
         pass
     tokens_saved = estimate_savings(raw_bytes, symbol.get("byte_length", 0))

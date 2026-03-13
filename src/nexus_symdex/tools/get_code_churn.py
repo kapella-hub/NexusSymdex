@@ -90,8 +90,8 @@ def get_code_churn(
         if not line:
             continue
 
-        # Commit hash lines are 40 hex chars
-        if len(line) == 40 and all(c in "0123456789abcdef" for c in line):
+        # Commit hash lines are 40 hex chars (git may output upper or lowercase)
+        if len(line) == 40 and all(c in "0123456789abcdefABCDEF" for c in line):
             current_commit = line
             continue
 

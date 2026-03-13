@@ -150,6 +150,10 @@ def get_context(
             evicted = symbols_out.pop(i)
             included_ids.discard(evicted["id"])
             tokens_used -= evicted["estimated_tokens"]
+            # Decrement raw_bytes_total to keep savings calculation accurate
+            evicted_sym = index.get_symbol(evicted["id"])
+            if evicted_sym:
+                raw_bytes_total -= evicted_sym.get("byte_length", 0)
         # Clean up ranges for this file (rebuild from remaining symbols)
         if to_remove:
             included_ranges[file_path] = [

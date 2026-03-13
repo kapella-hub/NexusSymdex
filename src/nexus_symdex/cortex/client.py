@@ -169,11 +169,9 @@ def get_cortex_client() -> "CortexClient":
             if _shared_client and _shared_client._client is not None:
                 try:
                     import asyncio
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        loop.create_task(_shared_client.close())
-                    else:
-                        loop.run_until_complete(_shared_client.close())
+                    loop = asyncio.new_event_loop()
+                    loop.run_until_complete(_shared_client.close())
+                    loop.close()
                 except Exception:
                     pass
 

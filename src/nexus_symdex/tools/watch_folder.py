@@ -14,6 +14,8 @@ from .index_folder import index_folder
 _active_watches: dict[str, threading.Thread] = {}
 # Signals to stop watcher threads
 _stop_events: dict[str, threading.Event] = {}
+# Guard concurrent access to _active_watches and _stop_events
+_watch_lock = threading.Lock()
 
 POLL_INTERVAL = 5  # seconds
 
@@ -104,26 +106,27 @@ def watch_folder(path: str, storage_path: Optional[str] = None) -> dict:
 
     key = str(folder_path)
 
-    if key in _active_watches and _active_watches[key].is_alive():
-        return {"status": "already_watching", "path": key}
+    with _watch_lock:
+        if key in _active_watches and _active_watches[key].is_alive():
+            return {"status": "already_watching", "path": key}
 
-    # Verify the folder is indexed
-    store = IndexStore(base_path=storage_path)
-    index = store.load_index("local", folder_path.name)
-    if not index:
-        return {"error": f"Folder not indexed. Run index_folder first: {path}"}
+        # Verify the folder is indexed
+        store = IndexStore(base_path=storage_path)
+        index = store.load_index("local", folder_path.name)
+        if not index:
+            return {"error": f"Folder not indexed. Run index_folder first: {path}"}
 
-    stop_event = threading.Event()
-    _stop_events[key] = stop_event
+        stop_event = threading.Event()
+        _stop_events[key] = stop_event
 
-    thread = threading.Thread(
-        target=_watcher_loop,
-        args=(folder_path, storage_path, stop_event),
-        daemon=True,
-        name=f"watch-{folder_path.name}",
-    )
-    thread.start()
-    _active_watches[key] = thread
+        thread = threading.Thread(
+            target=_watcher_loop,
+            args=(folder_path, storage_path, stop_event),
+            daemon=True,
+            name=f"watch-{folder_path.name}",
+        )
+        thread.start()
+        _active_watches[key] = thread
 
     return {
         "status": "watching",
@@ -145,14 +148,16 @@ def unwatch_folder(path: str, storage_path: Optional[str] = None) -> dict:
     folder_path = Path(path).expanduser().resolve()
     key = str(folder_path)
 
-    if key not in _active_watches:
-        return {"error": f"Not watching: {path}"}
+    with _watch_lock:
+        if key not in _active_watches:
+            return {"error": f"Not watching: {path}"}
 
-    stop_event = _stop_events.pop(key, None)
-    if stop_event:
-        stop_event.set()
+        stop_event = _stop_events.pop(key, None)
+        if stop_event:
+            stop_event.set()
 
-    thread = _active_watches.pop(key)
+        thread = _active_watches.pop(key)
+
     thread.join(timeout=POLL_INTERVAL + 2)
 
     return {"status": "stopped", "path": key}
@@ -167,19 +172,20 @@ def list_watches(storage_path: Optional[str] = None) -> dict:
     Returns:
         Dict with list of watched paths.
     """
-    active = []
-    dead_keys = []
+    with _watch_lock:
+        active = []
+        dead_keys = []
 
-    for key, thread in _active_watches.items():
-        if thread.is_alive():
-            active.append(key)
-        else:
-            dead_keys.append(key)
+        for key, thread in _active_watches.items():
+            if thread.is_alive():
+                active.append(key)
+            else:
+                dead_keys.append(key)
 
-    # Clean up dead threads
-    for key in dead_keys:
-        _active_watches.pop(key, None)
-        _stop_events.pop(key, None)
+        # Clean up dead threads
+        for key in dead_keys:
+            _active_watches.pop(key, None)
+            _stop_events.pop(key, None)
 
     return {
         "watches": active,
