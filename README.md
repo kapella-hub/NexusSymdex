@@ -331,8 +331,8 @@ uv sync
   }
 }
 
-# 3. Install the plugin
-claude plugin add <path-to-repo>/claude-plugin
+# 3. Install the plugin (inside Claude Code, run):
+/plugin marketplace add <path-to-repo>/claude-plugin
 ```
 
 Then, for each project you want intelligence on:
